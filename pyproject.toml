@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "brain_pipe"
+version = "0.1.0"
+description = "Reproducible processing pipelines and uniform loaders for brain imaging datasets."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "matt higger", email = "mhigger@ccs.neu.edu"},
+]
+dependencies = [
+    "pandas>=2",
+    "nibabel>=5",
+    "platformdirs>=4",
+    "pyyaml>=6",
+    "tqdm>=4",
+]
+
+[project.optional-dependencies]
+# Pipeline extras pin every dep to an exact version so that reprocessing
+# reproduces the deposited derivative bit-for-bit. Install one at a time
+# into a dedicated venv.
+
+hcp_ya_open-pipeline = [
+    # TODO: replace placeholder pins with `pip freeze` output from the
+    # next clean run that produces the Zenodo deposit. Until then these
+    # are upper-bounded against the latest release the code was developed
+    # against; they are *not* yet exact-pin reproducible.
+    "dipy==1.9.0",
+    "antspyx==0.5.4",
+    "nibabel==5.3.2",
+    "numpy==1.26.4",
+    "joblib==1.4.2",
+    "tqdm==4.66.5",
+]
+
+dev = [
+    "pytest>=7",
+]
+
+[tool.setuptools.packages.find]
+include = ["brain_pipe*"]
+
+[tool.setuptools.package-data]
+"brain_pipe.hcp_ya_open" = ["manifest.yaml", "pipeline/requirements.lock"]
+"brain_pipe.hcp_ya_restricted" = ["manifest.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

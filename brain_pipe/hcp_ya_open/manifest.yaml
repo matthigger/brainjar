@@ -1,0 +1,35 @@
+name: hcp_ya_open
+description: |
+  Processed FA + MD diffusion derivative for 100 unrelated subjects from
+  the HCP Young Adult Open Access release, registered to a mean-FA SyN
+  template with a group intersection brain mask.
+
+source:
+  name: Human Connectome Project — Young Adult, Open Access
+  url: https://db.humanconnectome.org
+
+dua:
+  name: WU-Minn HCP Consortium Open Access Data Use Terms
+  url: https://www.humanconnectome.org/study/hcp-young-adult/document/wu-minn-hcp-consortium-open-access-data-use-terms
+  prompt: "I have agreed to the HCP Open Access data use terms"
+
+zenodo:
+  doi: 10.5281/zenodo.17306498
+  url: https://zenodo.org/records/17306498/files/hcp100_aug25_registered.zip?download=1
+  filename: hcp100_aug25_registered.zip
+  # md5: TODO — record after the next deposit so the fetcher can verify
+
+pipeline:
+  # Records the exact env used to produce the deposited Zenodo derivative.
+  # Populate after a clean reprocess run by capturing `pip freeze` into
+  # pipeline/requirements.lock and the running Python version here.
+  python: null   # e.g. "3.11.9"
+  lockfile: pipeline/requirements.lock
+
+outputs:
+  # What the processed directory contains
+  - "<sbj>_fa.nii.gz"
+  - "<sbj>_md.nii.gz"
+  - fa_template.nii.gz
+  - group_mask.nii.gz
+  - covariates.csv          # optional; produced from HCP unrestricted CSV

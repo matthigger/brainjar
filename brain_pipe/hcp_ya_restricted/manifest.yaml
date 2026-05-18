@@ -1,0 +1,32 @@
+name: hcp_ya_restricted
+description: |
+  HCP-YA Restricted-access covariates layered onto the hcp_ya_open
+  processed derivative. Imaging (FA + MD, registered) is reused from
+  hcp_ya_open; this package adds the restricted covariate CSV
+  (exact age, family structure, handedness, drug screens, ...) joined
+  to the subject set that completed the open-access pipeline.
+
+source:
+  name: Human Connectome Project — Young Adult, Restricted Access
+  url: https://db.humanconnectome.org
+
+dua:
+  name: WU-Minn HCP Restricted Data Use Terms
+  # TODO: confirm exact restricted DUA URL on the ConnectomeDB page
+  # before publishing; the open-access URL is in hcp_ya_open/manifest.yaml.
+  url: https://www.humanconnectome.org/study/hcp-young-adult/document/wu-minn-hcp-consortium-restricted-data-use-terms
+  prompt: "I have agreed to the HCP Restricted data use terms"
+
+# No Zenodo deposit: restricted data is not redistributable.
+zenodo: null
+
+inputs:
+  # Files the user must place into raw_dir for process() to succeed.
+  - RESTRICTED_<user>_<timestamp>.csv  # ConnectomeDB Subjects export
+                                       # with "Enable Restricted Data" on
+
+outputs:
+  covariates_restricted.csv: |
+    The RESTRICTED_*.csv export, with Subject renamed to subject_id,
+    filtered to subjects that successfully completed the hcp_ya_open
+    DTI/registration pipeline.

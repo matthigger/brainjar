@@ -1,0 +1,6 @@
+# Exact-pin lockfile for the HCP-YA Open pipeline.
+#
+# Populate by running `pip freeze > pipeline/requirements.lock` from
+# inside the venv that produced the deposited Zenodo derivative. Until
+# then, the [hcp_ya_open-pipeline] extra in pyproject.toml holds the
+# (placeholder) direct-dep pins.
