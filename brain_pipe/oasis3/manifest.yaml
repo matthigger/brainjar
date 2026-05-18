@@ -1,0 +1,65 @@
+name: oasis3
+description: |
+  Time-matched A/T/N + DTI subset of OASIS-3 (AV45 amyloid PUP ∩
+  AV1451 baseline tau PUP ∩ DWI MR, with worst pairwise temporal gap
+  ≤ 60 days). Four per-subject 3D NIfTIs registered to MNI152:
+  amyloid_suvr, tau_suvr, fa, md. ~68 subjects.
+
+source:
+  name: Open Access Series of Imaging Studies, Release 3 (OASIS-3)
+  url: https://sites.wustl.edu/oasisbrains/home/oasis-3/
+  data_dictionary: https://sites.wustl.edu/oasisbrains/files/2024/04/OASIS-3_Imaging_Data_Dictionary_v2.3-a93c947a586e7367.pdf
+  hosting: https://nitrc.org/ir
+  projects:
+    - OASIS3          # MR, PIB/AV45/FDG PET, FreeSurfer, PUP
+    - OASIS3_AV1451   # baseline AV1451 (tau) PET + PUP
+
+dua:
+  name: OASIS Data Use Agreement
+  url: https://www.oasis-brains.org
+  prompt: "I have agreed to the OASIS Data Use Agreement"
+
+# No Zenodo redistribution — OASIS data is DUA-restricted.
+zenodo: null
+
+cohort:
+  inclusion:
+    - has AV45 amyloid PUP (OASIS3 / tracer=AV45)
+    - has AV1451 baseline tau PUP (OASIS3_AV1451 only; OASIS3_AV1451L excluded)
+    - has at least one MR session containing DWI
+    - worst pairwise temporal gap ≤ 60 days across the chosen
+      AV45 PUP, AV1451 PUP, and DWI MR sessions
+  expected_n: 68
+
+oasis_scripts:
+  # Cloned at runtime into <dest>/oasis-scripts/ at this exact commit.
+  # Not vendored: upstream has no LICENSE file (verified 2026-05-18 against
+  # commit f95ef430), so redistribution inside the wheel is not permissible.
+  # To bump: change `commit` here; next pipeline run will re-checkout.
+  url: https://github.com/NrgXnat/oasis-scripts
+  commit: f95ef430f9d2b194a8eccac032106b55f518ad50
+  retrieved: 2026-05-18
+
+mni_template:
+  # The MNI152 reference all four image features are warped into.
+  # Downloaded once on first pipeline run; cached in <dest>/mni152/.
+  name: MNI152NLin2009cAsym
+  resolution_mm: 1
+  url: https://www.templateflow.org/
+
+pipeline:
+  # Records the exact env used to produce the processed derivative.
+  # Populate after a clean reprocess run.
+  python: null   # e.g. "3.11.9"
+  lockfile: pipeline/requirements.lock
+
+outputs:
+  # What the processed directory contains
+  - "<sbj>_amyloid_suvr.nii.gz"
+  - "<sbj>_tau_suvr.nii.gz"
+  - "<sbj>_fa.nii.gz"
+  - "<sbj>_md.nii.gz"
+  - mni_template.nii.gz
+  - group_mask.nii.gz
+  - cohort_sessions.csv     # subjects + chosen experiment IDs
+  - covariates.csv          # xfeat
