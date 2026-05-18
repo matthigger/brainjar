@@ -215,7 +215,8 @@ def _process_local(raw_dir, dest, n_jobs=1, n_jobs_dti=None):
 
     from joblib import Parallel, delayed
 
-    from brain_pipe.hcp_ya_open.pipeline import covariates, dti, reg, zip_check
+    from brain_pipe._dwi_pipeline import dti, reg, zip_check
+    from brain_pipe.hcp_ya_open.pipeline import covariates
 
     dest.mkdir(parents=True, exist_ok=True)
 
