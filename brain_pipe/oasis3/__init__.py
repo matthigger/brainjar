@@ -1,18 +1,24 @@
 """OASIS-3 — time-matched A/T/N + DTI subset registered to MNI152.
 
-Use:
-    from brain_pipe.oasis3 import (
-        prepare, process, download_raw,
-        get_df_image, get_df_xfeat, LABELS,
-    )
+Three-stage flow:
+
+    from brain_pipe.oasis3 import prepare, fetch, process
+
+    prepare(bundle='~/Downloads/OASIS3_data_files.zip')  # metadata only, no creds
+    fetch()                                              # NITRC-IR imaging download
+    process()                                            # DTI + MNI registration
+
+Loaders:
+
+    from brain_pipe.oasis3 import get_df_image, get_df_xfeat, LABELS
 """
 
-from brain_pipe.oasis3.fetch import download_raw, prepare, process
+from brain_pipe.oasis3.fetch import fetch, prepare, process
 from brain_pipe.oasis3.labels import LABELS
 from brain_pipe.oasis3.load import get_df_image, get_df_xfeat
 
 __all__ = [
-    "prepare", "process", "download_raw",
+    "prepare", "fetch", "process",
     "get_df_image", "get_df_xfeat",
     "LABELS",
 ]

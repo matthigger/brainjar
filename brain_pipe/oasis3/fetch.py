@@ -65,6 +65,67 @@ def prepare(bundle, dest=None):
     return dest
 
 
+def fetch(dest=None, nitrc_user=None):
+    """Download cohort imaging from NITRC-IR via the XNAT REST API.
+
+    Second of three stages. ``prepare(bundle=...)`` must have run
+    first — this reads ``dest/cohort_sessions.csv`` to know which
+    sessions to fetch.
+
+    Prompts for the NITRC-IR password at every call (never saved
+    to disk). Username can be passed explicitly via ``nitrc_user=``
+    or will also be prompted.
+
+    For each cohort subject, fetches:
+
+    - T1w + DWI scans from the chosen MR session
+    - the AV45 PUP's SUVR file(s)
+    - the AV1451 PUP's SUVR file(s)
+
+    The downloader is fully Python (uses ``requests``, no bash
+    subprocess) so it works on Linux / Mac / Windows. Per-file
+    progress is shown via ``tqdm``. Idempotent: subjects already on
+    disk are skipped, so an interrupted fetch resumes cleanly.
+
+    Args:
+        dest: cache location; defaults to
+            ``platformdirs.user_data_dir('brain_pipe')/oasis3``.
+        nitrc_user: NITRC-IR username. Prompted if omitted.
+
+    Returns:
+        ``Path`` to ``dest/raw/`` (where scans/ and pup/ subdirs live).
+    """
+    import getpass
+
+    dest = _resolve_dest(dest)
+    cohort_csv = dest / "cohort_sessions.csv"
+    if not cohort_csv.exists():
+        raise FileNotFoundError(
+            f"cohort_sessions.csv not found at {cohort_csv}. Run "
+            f"`prepare(bundle=...)` first."
+        )
+    raw_dir = dest / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+
+    if nitrc_user is None:
+        nitrc_user = input("NITRC-IR username: ").strip()
+        while not nitrc_user:
+            nitrc_user = input("NITRC-IR username (required): ").strip()
+    password = getpass.getpass(f"NITRC-IR password for {nitrc_user}: ")
+
+    from brain_pipe.oasis3.pipeline import fetch_imaging
+    from brain_pipe.oasis3.pipeline.xnat import NitrcXnat
+
+    print(f"[authenticating against NITRC-IR]")
+    with NitrcXnat(nitrc_user, password) as xnat:
+        fetch_imaging.fetch_cohort(cohort_csv, raw_dir, xnat)
+
+    print()
+    print(f"Done. Raw data at {raw_dir}")
+    print(f"Next: process()  (DTI + MNI registration)")
+    return raw_dir
+
+
 def download_raw(raw_dir=None, dest=None, nitrc_user=None):
     """Run only stages 1-3: build the cohort manifest, fetch
     ``oasis-scripts`` at the pinned SHA, and download every cohort
