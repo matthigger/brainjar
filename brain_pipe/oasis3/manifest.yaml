@@ -33,15 +33,6 @@ cohort:
       AV45 PUP, AV1451 PUP, and DWI MR sessions
   expected_n: 68
 
-oasis_scripts:
-  # Cloned at runtime into <dest>/oasis-scripts/ at this exact commit.
-  # Not vendored: upstream has no LICENSE file (verified 2026-05-18 against
-  # commit f95ef430), so redistribution inside the wheel is not permissible.
-  # To bump: change `commit` here; next pipeline run will re-checkout.
-  url: https://github.com/NrgXnat/oasis-scripts
-  commit: f95ef430f9d2b194a8eccac032106b55f518ad50
-  retrieved: 2026-05-18
-
 mni_template:
   # The MNI152 reference all four image features are warped into.
   # Downloaded once on first pipeline run; cached in <dest>/mni152/.

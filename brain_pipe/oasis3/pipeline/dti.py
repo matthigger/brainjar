@@ -57,13 +57,13 @@ def process_cohort(cohort_csv, raw_dir, n_jobs=1):
 
     Args:
         cohort_csv: ``cohort_sessions.csv`` path.
-        raw_dir: parent of ``scans/`` (where ``fetch_scripts`` wrote
+        raw_dir: parent of ``scans/`` (where :func:`fetch` wrote
             downloads).
         n_jobs: parallel workers; each holds the full DWI volume
             (~1-3 GB for OASIS-3) in memory, so keep this conservative.
 
     Skips subjects whose DWI download is missing; logs them so the user
-    can re-run ``fetch_scripts`` if needed.
+    can re-run :func:`fetch` if needed.
     """
     # Lazy import — the shared module is in the pipeline extra.
     from dipy.reconst.dti import fractional_anisotropy, mean_diffusivity

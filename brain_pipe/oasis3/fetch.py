@@ -166,91 +166,22 @@ def fetch(dest=None, nitrc_user=None):
     return raw_dir
 
 
-def download_raw(raw_dir=None, dest=None, nitrc_user=None):
-    """Run only stages 1-3: build the cohort manifest, fetch
-    ``oasis-scripts`` at the pinned SHA, and download every cohort
-    subject's raw scans + PUP outputs into ``raw_dir``.
+def process(dest=None, n_jobs=1, n_jobs_dti=None):
+    """Run the compute stages: DTI fit + MNI152 registration.
 
-    Use this when you want OASIS-3 cohort data on disk for your own
-    downstream analysis. Skips the DTI fit, MNI registration, and
-    covariate assembly stages of :func:`process`.
+    Third of three stages. ``prepare()`` + ``fetch()`` must have run
+    first — this reads ``dest/cohort_sessions.csv`` for the subject
+    list and ``dest/raw/`` for the downloaded imaging.
 
-    Calling :func:`process` afterwards is idempotent: the download
-    stage early-outs once data is present, so the second call just
-    picks up at stages 4-6.
+    ``covariates.csv`` is written during ``prepare()`` (from the
+    metadata bundle) and is not regenerated here.
 
     Args:
-        raw_dir: directory with the OASIS-3 metadata CSVs
-            (``mr.csv``, ``pup.csv``, ``sbj.csv``, ``1451/pet.csv``,
-            ``1451/pup.csv``); downloads land here under ``scans/``
-            and ``pup/``. Defaults to ``<dest>/raw/``.
-        dest: where ``cohort_sessions.csv`` and the cloned
-            ``oasis-scripts`` repo are cached. Defaults to
-            ``$BRAIN_PIPE_OASIS3_PATH`` or
-            ``platformdirs.user_data_dir('brain_pipe')/oasis3``.
-        nitrc_user: NITRC-IR username; see :func:`process` docstring
-            for the resolution order. Password is prompted once and
-            piped to each downloader via stdin.
-
-    Returns:
-        ``Path`` to ``raw_dir`` (where the downloaded files live).
-    """
-    dest = _resolve_dest(dest)
-    manifest = yaml.safe_load(_MANIFEST.read_text())
-
-    raw = Path(raw_dir) if raw_dir is not None else (dest / "raw")
-    if not raw.exists():
-        raise FileNotFoundError(
-            f"OASIS-3 raw_dir not found at {raw}. Place the metadata "
-            f"CSVs (mr.csv, pup.csv, sbj.csv, 1451/pet.csv, "
-            f"1451/pup.csv) downloaded from the NITRC-IR "
-            f"`0AS_data_files` pseudo-subject there, or pass "
-            f"raw_dir=... explicitly. See README for the navigation."
-        )
-
-    from brain_pipe.oasis3.pipeline import (
-        fetch_scripts,
-        install_scripts,
-        manifest as manifest_stage,
-    )
-
-    dest.mkdir(parents=True, exist_ok=True)
-
-    print("[1/3] cohort selection from metadata CSVs")
-    cohort_csv = manifest_stage.build_cohort(raw, dest)
-
-    print("[2/3] ensure oasis-scripts at pinned SHA")
-    scripts_dir = install_scripts.ensure_scripts(dest, manifest)
-
-    print(f"[3/3] fetching scans + PUP via oasis-scripts -> {raw}")
-    fetch_scripts.download_cohort(
-        cohort_csv, raw, scripts_dir=scripts_dir, nitrc_user=nitrc_user,
-    )
-    return raw
-
-
-def process(raw_dir=None, dest=None, n_jobs=1, n_jobs_dti=None,
-            nitrc_user=None):
-    """Build the OASIS-3 processed derivative; return its cache path.
-
-    Args:
-        raw_dir: directory containing the OASIS-3 metadata CSVs
-            (``mr.csv``, ``pup.csv``, ``sbj.csv``, ``1451/pet.csv``,
-            ``1451/pup.csv``) downloaded from NITRC-IR's
-            ``0AS_data_files`` pseudo-subject. Defaults to
-            ``<dest>/raw/``. The pipeline also writes downloaded scan
-            files under ``<raw_dir>/scans/`` and ``<raw_dir>/pup/``.
-        dest: cache location for the processed output. Defaults to
-            ``$BRAIN_PIPE_OASIS3_PATH`` if set, else
-            ``platformdirs.user_data_dir('brain_pipe')/oasis3``.
-        n_jobs: parallel workers for SyN registration (stage 4).
-        n_jobs_dti: parallel workers for DTI fitting (stage 3); defaults
-            to ``min(n_jobs, 4)`` since each holds the DWI volume in RAM.
-        nitrc_user: NITRC-IR username for the download scripts. If
-            ``None``, resolution falls through ``$NITRC_IR_USER`` ->
-            ``~/.config/brain_pipe/oasis3.yaml`` -> interactive prompt
-            (with an offer to save). The password is always prompted
-            interactively by the upstream scripts; never stored.
+        dest: cache location. Defaults to ``$BRAIN_PIPE_OASIS3_PATH``
+            if set, else ``platformdirs.user_data_dir('brain_pipe')/oasis3``.
+        n_jobs: parallel workers for SyN registration.
+        n_jobs_dti: parallel workers for DTI fitting; defaults to
+            ``min(n_jobs, 4)`` since each holds the DWI volume in RAM.
 
     Returns:
         ``pathlib.Path`` to a directory of
@@ -263,31 +194,20 @@ def process(raw_dir=None, dest=None, n_jobs=1, n_jobs_dti=None,
     if sentinel.exists():
         return dest
 
-    manifest = yaml.safe_load(_MANIFEST.read_text())
-
-    raw = Path(raw_dir) if raw_dir is not None else (dest / "raw")
-    if not raw.exists():
+    cohort_csv = dest / "cohort_sessions.csv"
+    if not cohort_csv.exists():
         raise FileNotFoundError(
-            f"OASIS-3 raw_dir not found at {raw}. Place the metadata "
-            f"CSVs (mr.csv, pup.csv, sbj.csv, 1451/pet.csv, "
-            f"1451/pup.csv) downloaded from the NITRC-IR "
-            f"`0AS_data_files` pseudo-subject there, or pass "
-            f"raw_dir=... explicitly. See README for the navigation."
+            f"cohort_sessions.csv not found at {cohort_csv}. Run "
+            f"`prepare(...)` first."
+        )
+    raw_dir = dest / "raw"
+    if not raw_dir.exists():
+        raise FileNotFoundError(
+            f"raw imaging not found at {raw_dir}. Run `fetch(...)` first."
         )
 
-    _process_local(
-        raw, dest, manifest,
-        n_jobs=n_jobs, n_jobs_dti=n_jobs_dti,
-        nitrc_user=nitrc_user,
-    )
+    manifest = yaml.safe_load(_MANIFEST.read_text())
 
-    dest.mkdir(parents=True, exist_ok=True)
-    sentinel.touch()
-    return dest
-
-
-def _process_local(raw_dir, dest, manifest, n_jobs, n_jobs_dti, nitrc_user):
-    """Run the five OASIS-3 pipeline stages."""
     if n_jobs_dti is None:
         n_jobs_dti = min(n_jobs, 4)
     os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = "1"
@@ -304,34 +224,14 @@ def _process_local(raw_dir, dest, manifest, n_jobs, n_jobs_dti, nitrc_user):
             "into a fresh venv."
         ) from e
 
-    from brain_pipe.oasis3.pipeline import (
-        covariates,
-        dti,
-        fetch_scripts,
-        install_scripts,
-        manifest as manifest_stage,
-        reg,
-    )
+    from brain_pipe.oasis3.pipeline import dti, reg
 
-    dest.mkdir(parents=True, exist_ok=True)
-
-    print("[1/6] cohort selection from metadata CSVs")
-    cohort_csv = manifest_stage.build_cohort(raw_dir, dest)
-
-    print("[2/6] ensure oasis-scripts at pinned SHA")
-    scripts_dir = install_scripts.ensure_scripts(dest, manifest)
-
-    print(f"[3/6] fetching scans + PUP via oasis-scripts -> {raw_dir}")
-    fetch_scripts.download_cohort(
-        cohort_csv, raw_dir, scripts_dir=scripts_dir, nitrc_user=nitrc_user,
-    )
-
-    print(f"[4/6] DTI fitting (FA + MD) — n_jobs_dti={n_jobs_dti}")
+    print(f"[1/2] DTI fitting (FA + MD) — n_jobs_dti={n_jobs_dti}")
     dti.process_cohort(cohort_csv, raw_dir, n_jobs=n_jobs_dti)
 
-    print(f"[5/6] registration to MNI152 — n_jobs={n_jobs}")
+    print(f"[2/2] registration to MNI152 — n_jobs={n_jobs}")
     reg.register_cohort(cohort_csv, raw_dir, dest, manifest=manifest,
                         n_jobs=n_jobs)
 
-    print("[6/6] covariates.csv")
-    covariates.produce_covariates(raw_dir, dest, cohort_csv)
+    sentinel.touch()
+    return dest

@@ -102,9 +102,9 @@ visit" cutoff that excludes the late mode entirely.
 amyloid, tau, and diffusion measurements represent the same biological
 state within ~2 months.
 
-The full filter logic lives in `pipeline/manifest.py`; the cohort
-session-list CSV is regenerated from the OASIS-3 metadata at pipeline
-run time, not committed.
+The full filter logic lives in `pipeline/cohort.py`; the cohort
+session-list CSV is regenerated from the OASIS-3 bundle CSVs each
+time ``prepare()`` runs, not committed.
 
 ## Why we picked AV45 over PIB
 
@@ -171,83 +171,39 @@ No FreeSurfer ROI volumes or cortical thickness — those would be
 per-region scalar tables that overlap with the 3D image features.
 No `amyloid_tracer` — single tracer by construction.
 
-## oasis-scripts — cloned at runtime, pinned to a SHA
+## NITRC-IR credentials
 
-The download tooling lives at <https://github.com/NrgXnat/oasis-scripts>
-but has no tags, releases, **or a LICENSE file**. Without a license the
-default is "all rights reserved," so we can't legally vendor the
-scripts inside the `brain_pipe` wheel. Instead, on first pipeline run
-we **clone the upstream repo at the pinned SHA** into the local cache:
+`prepare()` and `fetch()` each prompt once for username + password
+(password via `getpass`, never stored). Pass `nitrc_user='...'` to
+either function to skip the username prompt — username is identity,
+not a secret.
 
-```
-<dest>/oasis-scripts/    # git clone @ pinned SHA, cached locally
-```
+## Pipeline
 
-The user fetches from the original source — we just automate the
-fetch and pin the version. Subsequent pipeline runs reuse the local
-clone and run offline.
+Three entry points run sequentially:
 
-Manifest records the pin:
+1. **`prepare()`** → `pipeline/bundle.py` + `pipeline/cohort.py` —
+   auto-fetches `OASIS3_data_files.zip` from NITRC-IR (or accepts a
+   pre-downloaded path), extracts the six CSVs the pipeline reads,
+   applies the cohort inclusion filter, and writes
+   `cohort_sessions.csv` + `covariates.csv` to `dest`.
+2. **`fetch()`** → `pipeline/fetch_imaging.py` + `pipeline/xnat.py` —
+   for each cohort subject, downloads T1w + DWI scans, the AV45 PUP
+   SUVR volume, and the AV1451 PUP SUVR volume via the XNAT REST API.
+   Pure Python, single password prompt, resumable.
+3. **`process()`** → `pipeline/dti.py` + `pipeline/reg.py` —
+   - **`dti.py`**: DIPY `TensorModel` per subject → `fa.nii.gz`,
+     `md.nii.gz`. Same code as `hcp_ya_open.pipeline.dti`.
+   - **`reg.py`**: per subject, rigid b0↔T1w (ANTs) and SyN T1w→MNI152
+     (ANTs). Compose the two transforms to bring FA/MD from DWI native
+     into MNI. Apply the T1→MNI warp directly to the AV45 and AV1451
+     PUP SUVR NIfTIs (they're already in T1 space from PUP). Outputs:
+     `<sbj>_fa.nii.gz`, `<sbj>_md.nii.gz`, `<sbj>_amyloid_suvr.nii.gz`,
+     `<sbj>_tau_suvr.nii.gz` — all in MNI152 on the same grid, plus
+     `mni_template.nii.gz` and `group_mask.nii.gz` (intersection of
+     warped brain masks).
 
-```yaml
-oasis_scripts:
-  url:      https://github.com/NrgXnat/oasis-scripts
-  commit:   f95ef430f9d2b194a8eccac032106b55f518ad50
-  retrieved: 2026-05-18
-```
-
-To bump: update the `commit` in `manifest.yaml`, commit the change.
-Next pipeline run re-checks out the new SHA. Worth opening an issue
-upstream asking them to add a permissive license — once that lands we
-can switch to true vendoring for an offline-from-first-run experience.
-
-Requires `git` on the host at first pipeline run (universally
-available).
-
-### NITRC-IR username — resolution order
-
-The download scripts always prompt for the **password** interactively
-(never stored). The **username** is resolved in this order:
-
-1. ``process(nitrc_user='...')`` explicit arg
-2. ``$NITRC_IR_USER`` environment variable
-3. ``~/.config/brain_pipe/oasis3.yaml`` (key: ``nitrc_ir_user``)
-4. Interactive prompt — and we offer to save to (3) so subsequent runs
-   skip the prompt
-
-Username is identity, not a secret, and storing it on disk is no
-different from your git email in ``~/.gitconfig``. The password is the
-secret; that one stays interactive.
-
-## Pipeline (planned)
-
-`process(download=False, raw_dir=...)` runs five stages. There is **no**
-`download=True` path — OASIS-3 is DUA-restricted and the pipeline
-cannot fetch a redistributed derivative.
-
-1. **`manifest.py`** — read OASIS-3 metadata CSVs from `raw_dir`
-   (`mr.csv`, `pup.csv`, `1451/pet.csv`, `1451/pup.csv`, `sbj.csv`),
-   apply the inclusion filter above, write `cohort_sessions.csv` to
-   `dest`.
-2. **`fetch_scripts.py`** — invoke vendored `download_oasis_scans.sh`
-   (T1w + DWI per chosen MR session) and `download_oasis_pup.sh`
-   (AV45 + AV1451 PUP SUVR volumes) for the 68 cohort subjects.
-   Prompts for NITRC-IR password once. Chunked by subject to keep
-   peak disk use manageable.
-3. **`dti.py`** — DIPY `TensorModel` per subject → `fa.nii.gz`,
-   `md.nii.gz`. Same code as `hcp_ya_open.pipeline.dti`.
-4. **`reg.py`** — per subject: rigid b0↔T1w (ANTs) **and** SyN
-   T1w→MNI152 (ANTs). Compose the two transforms to bring FA/MD from
-   DWI native into MNI. Apply the T1→MNI warp directly to the AV45
-   and AV1451 PUP SUVR NIfTIs (they're already in T1 space from PUP).
-   Outputs: `<sbj>_fa.nii.gz`, `<sbj>_md.nii.gz`,
-   `<sbj>_amyloid_suvr.nii.gz`, `<sbj>_tau_suvr.nii.gz` — all in MNI152
-   on the same grid, plus `mni_template.nii.gz` and
-   `group_mask.nii.gz` (intersection of warped brain masks).
-5. **`covariates.py`** — assemble `xfeat` from demographics + clinical
-   CSVs, restricted to subjects that completed stage 4.
-
-Raw downloads can be deleted after stage 4 produces derivatives;
+Raw downloads can be deleted after `process()` produces derivatives;
 processed footprint per subject is ~80–100 MB → ~7 GB for the full
 cohort.
 
