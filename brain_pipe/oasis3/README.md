@@ -17,22 +17,102 @@ A/T/N subset.
 
 1. Sign the [OASIS DUA](https://www.oasis-brains.org) and get a
    NITRC-IR account.
-2. From NITRC-IR's `OASIS3` project + `OASIS3_AV1451` project, open
-   the `0AS_data_files` pseudo-subject and download the metadata CSVs
-   into a single ``raw_dir`` on your machine. The layout this package
-   expects:
+
+2. Pull OASIS-3 metadata from NITRC-IR in **two passes**: one for
+   per-session imaging listings (used to select the cohort), one for
+   the clinical/cognitive data bundle (used to populate xfeat). NITRC-IR
+   exposes these via different UI flows; we're working on consolidating
+   but for now both passes are needed.
+
+   ### Pass 1 — per-session imaging listings (XNAT search export)
+
+   These are the simple session-listing CSVs the cohort-selection stage
+   reads from the top of ``raw_dir``. Repeat once per project
+   (OASIS3 and OASIS3_AV1451):
+
+   1. Log into <https://www.nitrc.org/ir/>.
+   2. **Projects** → **OASIS3**.
+   3. From the **MR Sessions** tab, **Options** → **Edit Columns** →
+      include `MR ID`, `Date`, `Subject`, `Age`, `Scanner`, `Scans`,
+      `PUP Timecourses`, `Freesurfers`. Then **Options** →
+      **Spreadsheet** → save as ``raw_dir/mr.csv``.
+   4. Same drill from the **PET Sessions** tab → save as
+      ``raw_dir/pet.csv``. (Columns: XNAT_PETSESSIONDATA ID, Subject,
+      Date, Age, ...)
+   5. Same drill for **PUP Timecourses** (Advanced Search → data type
+      "PUP Timecourse" → Edit Columns to include
+      `PUP_PUPTIMECOURSEDATA ID`, `Date`, `procType`, `model`,
+      `tracer`, `FSId`, `MRId`, `mocoError`, `regError`) → save as
+      ``raw_dir/pup.csv``.
+   6. **Subjects** tab → Spreadsheet → save as ``raw_dir/sbj.csv``
+      (columns: Subject, M/F, Hand, YOB, MR Sessions, PET Sessions,
+      CT Sessions).
+   7. Repeat steps 2–6 for project **OASIS3_AV1451**, saving the four
+      CSVs into ``raw_dir/1451/`` (only PET, PUP, and Subjects there;
+      no MR sessions are needed since AV1451 tau scans use the MR
+      session that's already in OASIS3).
+
+   Optional but consistent: ``raw_dir/ct.csv`` and
+   ``raw_dir/freesurfer.csv`` (same drill from those tabs). The
+   pipeline ignores them but they're useful reference.
+
+   ### Pass 2 — clinical / cognitive bundle download
+
+   All the clinical, cognitive, centiloid, and reference data lives in
+   one bundle inside the `0AS_data_files` pseudo-subject:
+
+   1. **Projects** → **OASIS3**.
+   2. **Subjects** tab → sort by Subject ID ascending. The first row
+      is `0AS_data_files` — click it.
+   3. You'll see one experiment: an MR-session-styled entry called
+      **`OASIS3_data_files`**. Click it.
+   4. The "scans" list shows ~30 assessment bundles (UDS forms,
+      cognitive assessments, JSON imaging metadata, data dictionaries,
+      centiloid values, etc.).
+   5. Check the box at the top of the list to **select all**, then
+      **Bulk Action → Download**. You'll get
+      `OASIS3_data_files.zip` (~67 MB).
+   6. ``unzip OASIS3_data_files.zip -d <raw_dir>`` so the tree lands
+      at ``<raw_dir>/OASIS3_data_files/scans/...``.
+
+   `covariates.py` globs through that tree by filename to read the
+   four files it actually needs:
+
+   | xfeat field   | source (anywhere under `<raw_dir>/OASIS3_data_files/`) |
+   |---------------|--------------------------------------------------------|
+   | `cdr`         | `OASIS3_UDSb4_cdr.csv`                                 |
+   | `mmse`        | `OASIS3_UDSc1_cognitive_assessments.csv`               |
+   | `dx`          | `OASIS3_UDSd1_diagnoses.csv`                           |
+   | `centiloid`   | `OASIS3_amyloid_centiloid.csv`                         |
+
+   The bundle's other contents (per-scan JSON CSVs, demographic
+   extras, 14 other UDS forms, data dictionary PDFs) are downloaded
+   but unused by the current pipeline. Don't bother deselecting —
+   the click cost outweighs the disk cost (~67 MB total).
+
+   You'll also see an **`OASIS_cohort_files.zip`** offered alongside
+   the data-files zip. It contains a single CSV listing subjects whose
+   CDR stayed at 0 across all visits (a curated cognitively-normal
+   subset). This pipeline doesn't use it (we build the cohort by
+   imaging modality availability, not by clinical status). Safe to
+   skip — or grab it if you ever want a confirmed-healthy overlay.
+
+   ### Resulting `raw_dir` layout
+
+   After both passes:
+
    ```
    <raw_dir>/
-   ├── mr.csv          # MR session listing (OASIS3 project)
-   ├── pup.csv         # PUP-processed PET (OASIS3 project; PIB + AV45)
-   ├── pet.csv         # PET session listing (OASIS3 project)
-   ├── sbj.csv         # subject demographics (OASIS3 project)
-   ├── freesurfer.csv  # FS-processed MR (optional; unused by pipeline)
-   ├── ct.csv          # CT session listing (optional; unused)
-   └── 1451/
-       ├── pet.csv     # AV1451 PET session listing (OASIS3_AV1451 project)
-       ├── pup.csv     # AV1451 PUP outputs (OASIS3_AV1451 project)
-       └── sbj.csv     # subject listing for OASIS3_AV1451 project
+   ├── mr.csv          # pass 1: OASIS3 MR session listing
+   ├── pup.csv         # pass 1: OASIS3 PUP timecourses (PIB + AV45)
+   ├── pet.csv         # pass 1: OASIS3 PET session listing
+   ├── sbj.csv         # pass 1: OASIS3 subject demographics
+   ├── 1451/
+   │   ├── pet.csv     # pass 1: OASIS3_AV1451 PET sessions
+   │   ├── pup.csv     # pass 1: OASIS3_AV1451 PUP timecourses (tau)
+   │   └── sbj.csv     # pass 1: OASIS3_AV1451 subjects
+   └── OASIS3_data_files/  # pass 2: extracted clinical bundle
+       └── scans/.../OASIS3_UDSb4_cdr.csv  (etc.)
    ```
 
 **Just want the raw cohort data on disk?** (e.g. running your own
@@ -42,7 +122,7 @@ downstream analysis instead of the bundled pipeline):
 from brain_pipe.oasis3 import download_raw
 
 # Runs cohort selection + downloads raw scans/PUP for the 68-subject
-# A/T/N+DTI cohort. One password prompt; ~25-50 min, ~40 GB on disk.
+# A/T/N+DTI cohort. One password prompt; ~10-20 min, ~5 GB on disk.
 download_raw(raw_dir='/path/to/your/oasis3_dir')
 ```
 
@@ -251,9 +331,11 @@ cohort.
 
 ## Storage strategy
 
-- Raw download peak: ~600 MB/subject × 68 ≈ 40 GB (chunked: process and
-  delete raw as you go)
-- Processed: ~80 MB/subject × 68 ≈ 5–6 GB
+- Raw download: ~70 MB/subject × 68 ≈ 5 GB. Driven mostly by
+  T1w + DWI scans (~3 GB total across the cohort); PUP SUVR files are
+  fetched via filename-filtered downloader (~30 MB/session × 136 ≈ 4 GB)
+  rather than the full PUP dirs (which would be ~2.7 GB each → ~370 GB).
+- Processed derivatives: ~80 MB/subject × 68 ≈ 5–6 GB
 - Default cache: `platformdirs.user_data_dir('brain_pipe') / oasis3`
 - Override per call (`process(dest=...)`) or globally
   (`BRAIN_PIPE_OASIS3_PATH`)

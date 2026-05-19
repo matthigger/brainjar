@@ -2,17 +2,28 @@
 cloned NrgXnat/oasis-scripts.
 
 Builds three one-column input CSVs from ``cohort_sessions.csv`` and
-invokes the upstream bash scripts as subprocesses, inheriting stdin/
-stdout so the user is prompted once per script for the NITRC-IR
-password. Subjects whose target directory already exists under
-``raw_dir`` are skipped — re-running ``process()`` after a partial
-download resumes without re-fetching.
+invokes the upstream bash scripts as subprocesses. Single password
+prompt via ``getpass`` is piped to each subprocess' stdin.
+
+For PUP we use ``download_oasis_pup_files_by_partial_filename_match.sh``
+with pattern ``"SUVR"`` rather than the full ``download_oasis_pup.sh``.
+The full downloader pulls every PUP intermediate (raw 4D dynamic PET,
+motion-corrected frames, ROI tables, FreeSurfer re-runs, QC plots) at
+~2.7 GB/session — ~370 GB cohort-wide, which exceeded most
+workstations. We only read one ``*SUVR*.nii*`` per session in
+``reg.py``, so the partial-match download (~30 MB/session,
+~4 GB cohort-wide) gives bit-identical pipeline output at ~99% less
+disk.
+
+Subjects whose target directory already exists under ``raw_dir`` are
+skipped — re-running after a partial download resumes without
+re-fetching.
 
 Output layout under ``raw_dir``:
 
     scans/<MR_ID>/anat?/<file>.nii.gz      # T1w
     scans/<MR_ID>/dwi?/<file>.{nii.gz,bval,bvec}
-    pup/<PUP_ID>/<pup output files>        # AV45 + AV1451 SUVR NIfTIs
+    pup/<PUP_ID>/<...>SUVR<...>.nii(.gz)   # AV45 + AV1451 SUVR NIfTIs (only)
 """
 
 import getpass
@@ -26,6 +37,11 @@ from platformdirs import user_config_dir
 
 SCAN_TYPES = "T1w,dwi"
 TAU_PROJECT = "OASIS3_AV1451"
+
+# Filename substring passed to download_oasis_pup_files_by_partial_filename_match.sh.
+# PUP names its SUVR outputs e.g. *_msum_SUVR.nii.gz and *_PVC_msum_SUVR.nii.gz —
+# matching "SUVR" gets both, and reg.py prefers the PVC version when present.
+PUP_FILE_PATTERN = "SUVR"
 
 _CONFIG_PATH = Path(user_config_dir("brain_pipe")) / "oasis3.yaml"
 
@@ -174,13 +190,18 @@ def download_cohort(cohort_csv, raw_dir, scripts_dir, nitrc_user=None):
     else:
         print(f"[scans] all {len(mr_ids)} MR sessions already on disk; skipping")
 
+    pup_script = (
+        scripts_dir / "download_pup"
+        / "download_oasis_pup_files_by_partial_filename_match.sh"
+    )
+
     if av45_pending:
         ids_csv = raw_dir / "_input_pup_av45.csv"
         _write_id_csv(av45_pending, ids_csv)
-        print(f"[pup-av45] downloading {len(av45_pending)} AV45 PUP sessions")
+        print(f"[pup-av45] downloading {len(av45_pending)} AV45 PUP SUVR files")
         _run_script(
-            scripts_dir / "download_pup" / "download_oasis_pup.sh",
-            str(ids_csv), str(pup_dir), nitrc_user,
+            pup_script,
+            str(ids_csv), str(pup_dir), nitrc_user, PUP_FILE_PATTERN,
             password=password,
         )
     else:
@@ -189,10 +210,11 @@ def download_cohort(cohort_csv, raw_dir, scripts_dir, nitrc_user=None):
     if tau_pending:
         ids_csv = raw_dir / "_input_pup_tau.csv"
         _write_id_csv(tau_pending, ids_csv)
-        print(f"[pup-tau] downloading {len(tau_pending)} AV1451 PUP sessions")
+        print(f"[pup-tau] downloading {len(tau_pending)} AV1451 PUP SUVR files")
         _run_script(
-            scripts_dir / "download_pup" / "download_oasis_pup.sh",
-            str(ids_csv), str(pup_dir), nitrc_user, TAU_PROJECT,
+            pup_script,
+            str(ids_csv), str(pup_dir), nitrc_user, PUP_FILE_PATTERN,
+            TAU_PROJECT,
             password=password,
         )
     else:
