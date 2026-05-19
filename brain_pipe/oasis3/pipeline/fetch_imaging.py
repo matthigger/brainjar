@@ -18,7 +18,11 @@ import pandas as pd
 from tqdm.auto import tqdm
 
 SCAN_TYPES = "T1w,dwi"
-PUP_FILE_SUBSTRING = "SUVR"
+# Match exactly the volumetric SUVR triplet — `*_msum_SUVR.4dfp.{img,hdr,ifh}`.
+# Excludes the `_g8` Gaussian-smoothed variant (we apply our own SyN
+# warp with built-in smoothing) and the hundreds of per-ROI scalar
+# tables PUP emits as `*.suvr` / `*_SUVR_*.txt` files.
+PUP_FILE_PATTERN = r"_SUVR\.4dfp\."
 
 
 def fetch_cohort(cohort_csv, raw_dir, xnat):
@@ -50,9 +54,9 @@ def fetch_cohort(cohort_csv, raw_dir, xnat):
     av45_ids = sorted(set(df["av45_pup_id"]))
     print(f"  [pup-av45] {len(av45_ids)} AV45 PUP SUVR files")
     for pup_id in tqdm(av45_ids, desc="AV45 SUVR", unit="sess"):
-        xnat.download_pup_filtered(pup_id, PUP_FILE_SUBSTRING, pup_dir)
+        xnat.download_pup_filtered(pup_id, PUP_FILE_PATTERN, pup_dir)
 
     tau_ids = sorted(set(df["tau_pup_id"]))
     print(f"  [pup-tau] {len(tau_ids)} AV1451 PUP SUVR files")
     for pup_id in tqdm(tau_ids, desc="AV1451 SUVR", unit="sess"):
-        xnat.download_pup_filtered(pup_id, PUP_FILE_SUBSTRING, pup_dir)
+        xnat.download_pup_filtered(pup_id, PUP_FILE_PATTERN, pup_dir)

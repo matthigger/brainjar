@@ -20,6 +20,7 @@ canonical reference (https://github.com/NrgXnat/oasis-scripts).
 
 import csv
 import io
+import re
 import zipfile
 from pathlib import Path
 
@@ -128,25 +129,29 @@ class NitrcXnat:
         self._stream_zip(url, out_dir, label=f"{experiment_id} [{scan_types}]")
         return out_dir
 
-    def download_pup_filtered(self, pup_id, filename_substr, dest, project=None):
-        """List files in a PUP assessor, filter by case-**sensitive**
-        substring match on filename, download each into
+    def download_pup_filtered(self, pup_id, filename_pattern, dest, project=None):
+        """List files in a PUP assessor, filter filenames by
+        case-sensitive regex search, download each into
         ``dest/<pup_id>/``. Skips if target dir already has content.
 
-        Case-sensitivity is deliberate. PUP's volumetric SUVR images
-        carry uppercase ``SUVR`` in their stems
-        (e.g. ``*_msum_SUVR.4dfp.img``), while the hundreds of per-ROI
-        scalar tables PUP also emits use a lowercase ``.suvr``
-        extension. A case-insensitive ``"SUVR"`` filter would pull
-        ~700 small tables per PUP at ~one HTTP round-trip each,
-        ballooning per-PUP time from seconds to minutes for no
-        downstream benefit. Case-sensitive matching keeps only the
-        volumetric images (typically 6 files: 2 SUVR variants ×
-        ``.4dfp.{img,hdr,ifh}`` triplets).
+        PUP assessors ship hundreds of files per session — full 4D
+        dynamic PET, motion-corrected frames, gaussian-smoothed
+        variants, per-ROI scalar tables (``.suvr`` and ``.txt``
+        extensions), QC plots, logs. The pipeline only reads the
+        single volumetric SUVR image triplet. The default pattern
+        ``_SUVR\\.4dfp\\.`` matches exactly that: the three files
+        ``*_msum_SUVR.4dfp.{img,hdr,ifh}``, while excluding the
+        Gaussian-smoothed ``_g8`` variant (we apply our own SyN warp
+        which has built-in smoothing) and the per-ROI scalar tables.
+
+        Per-PUP file count dropped this way: ~700 files (no filter)
+        → ~12 files (substring "SUVR") → 3 files (this regex).
 
         Args:
             pup_id: e.g. ``'OAS30003_AV45_PUPTIMECOURSE_d3731'``.
-            filename_substr: e.g. ``'SUVR'`` (case matters).
+            filename_pattern: regex string OR compiled ``re.Pattern``.
+                Matched against the filename via ``re.search``, so
+                anchors are explicit. Case-sensitive by default.
             dest: parent dir; output lands at ``dest/<pup_id>/``.
             project: XNAT project id. Auto-routed when ``None``.
 
@@ -160,6 +165,9 @@ class NitrcXnat:
         project = project or _project_for_experiment(pup_id)
         experiment_label = _experiment_label_from_pup(pup_id)
 
+        if isinstance(filename_pattern, str):
+            filename_pattern = re.compile(filename_pattern)
+
         list_url = (
             f"{BASE}/data/archive/projects/{project}/subjects/{subject}"
             f"/experiments/{experiment_label}/assessors/{pup_id}"
@@ -168,9 +176,10 @@ class NitrcXnat:
         r = self.session.get(list_url)
         r.raise_for_status()
         reader = csv.DictReader(io.StringIO(r.text))
-        matches = [row for row in reader if filename_substr in row["Name"]]
+        matches = [row for row in reader if filename_pattern.search(row["Name"])]
         if not matches:
-            print(f"  [WARN] no files matching {filename_substr!r} in {pup_id}")
+            print(f"  [WARN] no files matching {filename_pattern.pattern!r} "
+                  f"in {pup_id}")
             return out_dir
 
         out_dir.mkdir(parents=True, exist_ok=True)
