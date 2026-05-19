@@ -23,6 +23,48 @@ def _resolve_dest(dest=None):
     return resolve_dest("oasis3", dest)
 
 
+def prepare(bundle, dest=None):
+    """Extract the OASIS-3 metadata bundle and build the cohort + xfeat
+    table — without any NITRC-IR authentication or imaging download.
+
+    This is the first of three stages (prepare -> fetch -> process):
+
+    - ``prepare`` (here): metadata only, ~seconds, no creds. Yields
+      ``cohort_sessions.csv`` (subjects + chosen session IDs) and
+      ``covariates.csv`` (age/sex/cdr/mmse/dx/centiloid).
+    - ``fetch`` (next): prompts NITRC-IR creds, downloads T1w+DWI+SUVR
+      imaging for the cohort subjects.
+    - ``process``: DTI fit + MNI152 registration + final covariates.
+
+    Args:
+        bundle: path to ``OASIS3_data_files.zip`` downloaded from
+            NITRC-IR's ``OASIS3 -> 0AS_data_files -> OASIS3_data_files``
+            (Bulk Action -> Download).
+        dest: cache location; defaults to ``$BRAIN_PIPE_OASIS3_PATH`` or
+            ``platformdirs.user_data_dir('brain_pipe')/oasis3``.
+
+    Returns:
+        ``Path`` to ``dest``. The two output CSVs live at
+        ``dest/cohort_sessions.csv`` and ``dest/covariates.csv``.
+    """
+    from brain_pipe.oasis3.pipeline import bundle as bundle_stage
+    from brain_pipe.oasis3.pipeline import cohort as cohort_stage
+
+    dest = _resolve_dest(dest)
+    dest.mkdir(parents=True, exist_ok=True)
+
+    print("[1/2] extracting bundle CSVs")
+    bundle_paths = bundle_stage.extract(bundle, dest / "raw")
+
+    print("[2/2] building cohort + covariates")
+    cohort_stage.build(bundle_paths, dest)
+
+    print()
+    print(f"Done. Review covariates.csv at {dest / 'covariates.csv'}")
+    print(f"Next: fetch imaging (prompts NITRC-IR creds)")
+    return dest
+
+
 def download_raw(raw_dir=None, dest=None, nitrc_user=None):
     """Run only stages 1-3: build the cohort manifest, fetch
     ``oasis-scripts`` at the pinned SHA, and download every cohort
