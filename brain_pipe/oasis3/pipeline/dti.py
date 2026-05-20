@@ -1,12 +1,16 @@
 """Stage 4: DIPY tensor fit (FA + MD) per cohort subject.
 
 Thin per-dataset adapter over :func:`brain_pipe._dwi_pipeline.dti.process_dti`
-that handles OASIS-3's downloaded layout. The shared module expects
-``bvals`` / ``bvecs`` files named exactly that next to the DWI nifti;
-OASIS-3's ``download_oasis_scans.sh`` writes them as ``*.bval`` /
-``*.bvec``, so we symlink them to the expected names before
-dispatching. Outputs ``fa.nii.gz`` and ``md.nii.gz`` next to each
-subject's DWI nifti.
+that handles OASIS-3's XNAT-delivered layout::
+
+    raw/scans/<MR_ID>/<MR_ID>/scans/dwi*-dwi/
+        resources/NIFTI/files/sub-*_dwi.nii.gz
+        resources/BIDS/files/sub-*_dwi.{bval,bvec,json}
+
+The shared DTI fit expects ``bvals`` / ``bvecs`` files (no extension)
+next to the DWI nifti; we symlink the BIDS-style ``*.bval`` / ``*.bvec``
+into ``NIFTI/files/`` to satisfy that contract. Outputs ``fa.nii.gz``
+and ``md.nii.gz`` land alongside the DWI in ``NIFTI/files/``.
 """
 
 from pathlib import Path
@@ -16,40 +20,47 @@ from joblib import Parallel, delayed
 
 
 def _find_subject_dwi(scans_dir, mr_id):
-    """Locate the DWI nifti + bval + bvec under
-    ``<scans_dir>/<mr_id>/dwi*/``. Returns ``(dwi_nii, bval, bvec)`` or
-    ``None`` if the subject's DWI isn't on disk yet (download failed
-    silently? skip with a warning).
+    """Locate the DWI nifti + sibling bval/bvec for one subject.
+
+    Walks the XNAT-delivered tree ``<scans_dir>/<mr_id>/<mr_id>/scans/
+    dwi*-dwi/resources/{NIFTI,BIDS}/files/``. Returns
+    ``(dwi_nii, bval, bvec)`` or ``None`` if any piece is missing
+    (interrupted download, etc.).
     """
-    session_dir = scans_dir / mr_id
-    if not session_dir.exists():
+    # XNAT zips wrap the experiment_id directory once around themselves,
+    # so the on-disk session root is doubled.
+    session_root = scans_dir / mr_id / mr_id / "scans"
+    if not session_root.exists():
         return None
-    # download_oasis_scans.sh names dirs like "dwi1", "dwi2", etc.
-    dwi_dirs = sorted(session_dir.glob("dwi*"))
+    # OASIS-3 scan-type folders are e.g. "dwi1-dwi", "dwi2-dwi" — one
+    # per acquired run (typically opposite-phase-encode pairs). Pick the
+    # first run; merging via topup is out of scope for this baseline.
+    dwi_dirs = sorted(session_root.glob("dwi*-dwi"))
     if not dwi_dirs:
         return None
-    # Multiple dwi dirs in one session = opposite-phase-encode pairs.
-    # Pick the first; refining (e.g., merge with topup) would be a
-    # dataset-specific decision and is out of scope for this baseline.
-    d = dwi_dirs[0]
-    niftis = sorted(d.glob("*.nii.gz"))
-    bvals = sorted(d.glob("*.bval"))
-    bvecs = sorted(d.glob("*.bvec"))
-    if not (niftis and bvals and bvecs):
-        return None
-    return niftis[0], bvals[0], bvecs[0]
+    for d in dwi_dirs:
+        nifti_files = d / "resources" / "NIFTI" / "files"
+        bids_files = d / "resources" / "BIDS" / "files"
+        dwi = next(iter(nifti_files.glob("sub-*_dwi.nii.gz")), None)
+        bval = next(iter(bids_files.glob("*.bval")), None)
+        bvec = next(iter(bids_files.glob("*.bvec")), None)
+        if dwi and bval and bvec:
+            return dwi, bval, bvec
+    return None
 
 
 def _prep_subject(dwi_nii, bval, bvec):
-    """Symlink ``*.bval``/``*.bvec`` to ``bvals``/``bvecs`` next to the
-    DWI nifti (the names the shared DTI fit expects). Idempotent.
+    """Symlink BIDS-style ``*.bval``/``*.bvec`` into the NIFTI/files/
+    dir as ``bvals``/``bvecs`` (the names the shared DTI fit expects).
+    Idempotent.
     """
     folder = dwi_nii.parent
     for src, name in [(bval, "bvals"), (bvec, "bvecs")]:
         link = folder / name
         if link.exists():
             continue
-        link.symlink_to(src.name)  # relative symlink within the folder
+        # Cross-directory link from NIFTI/files/ -> BIDS/files/.
+        link.symlink_to(Path("..") / ".." / "BIDS" / "files" / src.name)
 
 
 def process_cohort(cohort_csv, raw_dir, n_jobs=1):

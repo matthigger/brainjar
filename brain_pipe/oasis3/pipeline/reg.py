@@ -64,52 +64,79 @@ def _resolve_mni(dest):
 
 
 def _find_t1(scans_dir, mr_id):
-    """T1w nifti from ``<scans_dir>/<mr_id>/anat*/*.nii.gz``."""
-    session = scans_dir / mr_id
-    if not session.exists():
+    """T1w nifti from the XNAT-delivered layout::
+
+        <scans_dir>/<mr_id>/<mr_id>/scans/anat*-T1w/resources/NIFTI/files/
+            sub-*_T1w.nii.gz
+    """
+    session_root = scans_dir / mr_id / mr_id / "scans"
+    if not session_root.exists():
         return None
-    anat_dirs = sorted(session.glob("anat*"))
-    for d in anat_dirs:
-        # download_oasis_scans.sh + scan_type=T1w lands T1ws here; JSON
-        # sidecars are present too. Skip those.
-        niftis = sorted(d.glob("*.nii.gz"))
+    for d in sorted(session_root.glob("anat*-T1w")):
+        nifti_files = d / "resources" / "NIFTI" / "files"
+        niftis = sorted(nifti_files.glob("sub-*_T1w.nii.gz"))
         if niftis:
             return niftis[0]
     return None
 
 
 def _find_dwi(scans_dir, mr_id):
-    """DWI nifti + sibling fa/md written by stage 4."""
-    session = scans_dir / mr_id
-    if not session.exists():
+    """DWI nifti + sibling fa/md from the XNAT-delivered layout.
+
+    Returns ``(nifti_files_dir, dwi_nii)``; the directory is needed so
+    callers can pick up the sibling ``fa.nii.gz`` / ``md.nii.gz`` that
+    :mod:`dti` writes alongside, and the BIDS-style ``*.bval`` two
+    levels over for b0 extraction.
+    """
+    session_root = scans_dir / mr_id / mr_id / "scans"
+    if not session_root.exists():
         return None
-    dwi_dirs = sorted(session.glob("dwi*"))
-    for d in dwi_dirs:
-        niftis = sorted(d.glob("*.nii.gz"))
-        # Exclude fa/md that stage 4 wrote into the same dir.
-        niftis = [n for n in niftis if n.stem not in ("fa", "md",
-                                                      "fa.nii", "md.nii")]
-        if niftis:
-            return d, niftis[0]
+    for d in sorted(session_root.glob("dwi*-dwi")):
+        nifti_files = d / "resources" / "NIFTI" / "files"
+        # sub-*_dwi.nii.gz is the DWI itself; fa.nii.gz / md.nii.gz are
+        # stage-4 outputs that live in the same directory.
+        dwi = next(iter(nifti_files.glob("sub-*_dwi.nii.gz")), None)
+        if dwi is not None:
+            return nifti_files, dwi
     return None
 
 
-def _find_pup_suvr(pup_dir, pup_id):
-    """A PUP session's SUVR NIfTI. Prefer PVC-corrected if present.
+def _find_pup_suvr_4dfp(pup_dir, pup_id):
+    """A PUP session's SUVR 4dfp triplet stem (``.4dfp.img`` path).
 
-    PUP outputs include both raw SUVR and partial-volume-corrected
-    SUVR (suffix ``_PVC``). Papers typically report PVC; we prefer it
-    but fall back to the non-PVC if the PVC file isn't present (older
-    PUP versions, etc.).
+    PUP ships its SUVR images in WashU's legacy 4dfp format, not NIfTI.
+    We target the ``*_msum_SUVR.4dfp.img`` (the volumetric SUVR) and
+    exclude the ``_g8`` Gaussian-smoothed variant since we apply our
+    own SyN warp with built-in smoothing downstream.
     """
     session = pup_dir / pup_id
     if not session.exists():
         return None
-    candidates = list(session.glob("**/*SUVR*.nii*"))
-    if not candidates:
-        return None
-    pvc = [c for c in candidates if "PVC" in c.name.upper()]
-    return (pvc or candidates)[0]
+    for p in sorted(session.glob("*_msum_SUVR.4dfp.img")):
+        if "_g8" in p.name:
+            continue
+        return p
+    return None
+
+
+def _ensure_nii_from_4dfp(img_path):
+    """Materialize a ``.nii.gz`` alongside a ``.4dfp.img`` for ANTs.
+
+    ANTs reads from filesystem paths and doesn't grok 4dfp, so we
+    convert once via :mod:`brain_pipe.oasis3.pipeline.fourdfp` and
+    cache the result. Idempotent.
+    """
+    img_path = Path(img_path)
+    # Strip ".4dfp.img" -> stem; append ".nii.gz".
+    stem = img_path.name[: -len(".4dfp.img")]
+    nii_path = img_path.parent / f"{stem}.nii.gz"
+    if nii_path.exists():
+        return nii_path
+    from brain_pipe.oasis3.pipeline.fourdfp import load as load_4dfp
+
+    nii = load_4dfp(img_path)
+    nii.to_filename(str(nii_path))
+    return nii_path
 
 
 def _extract_b0(dwi_nii, bval_path):
@@ -217,16 +244,23 @@ def register_cohort(cohort_csv, raw_dir, dest, manifest, n_jobs=1):
         sbj = row["subject_id"]
         t1 = _find_t1(scans_dir, row["dwi_mr_id"])
         dwi_found = _find_dwi(scans_dir, row["dwi_mr_id"])
-        amyloid = _find_pup_suvr(pup_dir, row["av45_pup_id"])
-        tau = _find_pup_suvr(pup_dir, row["tau_pup_id"])
-        if not (t1 and dwi_found and amyloid and tau):
+        amyloid_4dfp = _find_pup_suvr_4dfp(pup_dir, row["av45_pup_id"])
+        tau_4dfp = _find_pup_suvr_4dfp(pup_dir, row["tau_pup_id"])
+        if not (t1 and dwi_found and amyloid_4dfp and tau_4dfp):
             missing.append(sbj)
             continue
         dwi_dir, dwi_nii = dwi_found
-        bval = next(iter(sorted(dwi_dir.glob("*.bval"))), None)
+        # bval/bvec live two levels over in BIDS/files/, alongside the
+        # *_dwi.json sidecar (the dti stage symlinks them in as 'bvals'/
+        # 'bvecs' under NIFTI/files/ — but for b0 extraction we want the
+        # original .bval to pair voxel-wise with the dwi nifti).
+        bids_files = dwi_dir.parent.parent / "BIDS" / "files"
+        bval = next(iter(sorted(bids_files.glob("*.bval"))), None)
         if bval is None:
             missing.append(sbj)
             continue
+        amyloid = _ensure_nii_from_4dfp(amyloid_4dfp)
+        tau = _ensure_nii_from_4dfp(tau_4dfp)
         work.append((sbj, t1, dwi_dir, dwi_nii, bval, amyloid, tau))
 
     if missing:
