@@ -86,7 +86,7 @@ wins on two counts:
    Models trained here transfer directly to ADNI without tracer
    harmonization.
 
-Cost: smaller N than PIB. Worth it.
+Cost: smaller N than PIB.
 
 ## Image features (`get_df_image`)
 
