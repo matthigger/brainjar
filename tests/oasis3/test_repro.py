@@ -5,19 +5,15 @@ This file is excluded from default pytest discovery (see
 
     pytest tests/oasis3/test_repro.py -v                                    # all
     pytest tests/oasis3/test_repro.py::test_dti_single_subject_deterministic
-    pytest tests/oasis3/test_repro.py::test_fourdfp_single_subject_deterministic
     pytest tests/oasis3/test_repro.py::test_process_bit_identical_to_reference
 
 Requirements:
 - Raw OASIS-3 data + cohort/covariates CSVs at the default cache
-  ``~/.local/share/brain_pipe/oasis3/`` (re-used so the ~21 GB raw isn't
+  ``~/.local/share/brain_pipe/oasis3/`` (re-used so the raw isn't
   re-staged).
 - Pipeline extra installed: ``pip install brain_pipe[oasis3-pipeline]``.
-- WashU's ``nifti_4dfp`` is *not* required — the 4dfp determinism test
-  re-converts via our pure-Python parser and checks against the cached
-  ``.nii.gz`` materialized by ``reg._ensure_nii_from_4dfp``.
-- Approx wall time: ~30 s DTI, <1 s 4dfp, ~20 min full process (n_jobs=8
-  on a 32-core box; ~1-2 h on a 4-core laptop).
+- Approx wall time: ~30 s DTI, ~2 h full process (n_jobs=8 on a
+  32-core box).
 
 There is no Zenodo-download counterpart (OASIS-3 is DUA-restricted and
 not redistributable).
@@ -33,7 +29,7 @@ import pytest
 
 REFERENCE_MD5 = Path(__file__).parent.parent / "reference" / "oasis3_v1_md5.txt"
 OUTPUT_PATTERN = re.compile(
-    r"^(?:OAS\d{5}_(?:fa|md|amyloid_suvr|tau_suvr)\.nii\.gz|"
+    r"^(?:OAS\d{5}_(?:fa|md|t1)\.nii\.gz|"
     r"mni_template\.nii\.gz|group_mask\.nii\.gz)$"
 )
 
@@ -88,23 +84,6 @@ def _pick_subject_with_dti(raw_dir):
     return None, None
 
 
-def _pick_pup_with_cached_nii(raw_dir):
-    """A PUP session that has a cached ``*_msum_SUVR.nii.gz`` next to its
-    ``.4dfp.img``. Returns ``(img_path, nii_path)``.
-    """
-    pup_dir = raw_dir / "pup"
-    if not pup_dir.exists():
-        return None, None
-    for session in sorted(pup_dir.glob("OAS*_PUPTIMECOURSE_*")):
-        for img in sorted(session.glob("*_msum_SUVR.4dfp.img")):
-            if "_g8" in img.name:
-                continue
-            nii = img.parent / f"{img.name[: -len('.4dfp.img')]}.nii.gz"
-            if nii.exists():
-                return img, nii
-    return None, None
-
-
 def test_dti_single_subject_deterministic(tmp_path):
     """Re-run DIPY DTI on one subject; md5 must match the cached fa/md.
 
@@ -151,40 +130,6 @@ def test_dti_single_subject_deterministic(tmp_path):
         )
 
 
-def test_fourdfp_single_subject_deterministic(tmp_path):
-    """Re-convert one PUP SUVR via our 4dfp parser; md5 must match cached nii.
-
-    Catches regressions in ``brain_pipe.oasis3.pipeline.fourdfp`` against
-    the materialized output that ``reg._ensure_nii_from_4dfp`` produced
-    during the reference run. The 26 synthetic-fixture tests cover the
-    algorithm; this test pins the byte-level output on a real PUP SUVR.
-    """
-    pytest.importorskip("nibabel")
-    from brain_pipe.oasis3.pipeline.fourdfp import load as load_4dfp
-
-    raw = _default_dest() / "raw"
-    if not raw.exists():
-        pytest.skip(f"Raw OASIS-3 data not at {raw}")
-
-    img_path, cached_nii = _pick_pup_with_cached_nii(raw)
-    if img_path is None:
-        pytest.skip(
-            f"No PUP session under {raw}/pup/ has both a .4dfp.img and "
-            f"a sibling .nii.gz cached; run process() first."
-        )
-
-    nii = load_4dfp(img_path)
-    out_path = tmp_path / cached_nii.name
-    nii.to_filename(str(out_path))
-
-    produced = _md5(out_path)
-    cached = _md5(cached_nii)
-    assert produced == cached, (
-        f"4dfp -> nii for {img_path.name} differs from cached "
-        f"({produced} vs {cached})"
-    )
-
-
 def test_process_bit_identical_to_reference(tmp_path):
     """Full seeded process() into tmp_path; all 270 output md5s must match.
 
@@ -192,7 +137,7 @@ def test_process_bit_identical_to_reference(tmp_path):
     ``covariates.csv`` into ``tmp_path`` so process() runs the DTI fit
     (short-circuits on cached fa/md) + reg.register_cohort end-to-end
     without re-fetching imaging. Wall time scales with ``n_jobs``:
-    ~20 min on 32 cores, ~1-2 h on 4 cores.
+    ~2 h on 32 cores.
     """
     pytest.importorskip("dipy")
     pytest.importorskip("ants")
@@ -208,11 +153,8 @@ def test_process_bit_identical_to_reference(tmp_path):
     if not REFERENCE_MD5.exists():
         pytest.skip(f"Reference md5 list missing at {REFERENCE_MD5}")
 
-    # Stage tmp_path: raw is large (~21 GB) so symlink it; CSVs are
-    # small + process() may pass them around so copy them. Side effect:
-    # reg._ensure_nii_from_4dfp writes a sibling .nii.gz into the real
-    # raw/pup/<PUP_ID>/ if not already cached — harmless and idempotent
-    # since the reference run already materialized those.
+    # Stage tmp_path: raw is large so symlink it; CSVs are small +
+    # process() may pass them around so copy them.
     os.symlink(raw, tmp_path / "raw")
     shutil.copy(cohort_csv, tmp_path / "cohort_sessions.csv")
     shutil.copy(covariates_csv, tmp_path / "covariates.csv")

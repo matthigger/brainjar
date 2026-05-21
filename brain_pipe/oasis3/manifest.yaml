@@ -1,9 +1,9 @@
 name: oasis3
 description: |
-  Time-matched A/T/N + DTI subset of OASIS-3 (AV45 amyloid PUP ∩
-  AV1451 baseline tau PUP ∩ DWI MR, with worst pairwise temporal gap
-  ≤ 60 days). Four per-subject 3D NIfTIs registered to MNI152:
-  amyloid_suvr, tau_suvr, fa, md. ~68 subjects.
+  CDR-prediction subset of OASIS-3 (DWI MR with tensor-fittable run ∩
+  complete UDS Form B4 (CDR) visit, paired within 365 days). Three
+  per-subject 3D NIfTIs registered to MNI152: t1, fa, md. Target is
+  CDR Sum-of-Boxes plus the six component scores. ~1013 subjects.
 
 source:
   name: Open Access Series of Imaging Studies, Release 3 (OASIS-3)
@@ -11,8 +11,7 @@ source:
   data_dictionary: https://sites.wustl.edu/oasisbrains/files/2024/04/OASIS-3_Imaging_Data_Dictionary_v2.3-a93c947a586e7367.pdf
   hosting: https://nitrc.org/ir
   projects:
-    - OASIS3          # MR, PIB/AV45/FDG PET, FreeSurfer, PUP
-    - OASIS3_AV1451   # baseline AV1451 (tau) PET + PUP
+    - OASIS3          # MR (T1w, DWI), demographics, UDSb4 (CDR)
 
 # NITRC-IR enforces the OASIS Data Use Agreement at account-creation
 # time, so holding valid credentials is itself DUA confirmation — the
@@ -26,15 +25,15 @@ zenodo: null
 
 cohort:
   inclusion:
-    - has AV45 amyloid PUP (OASIS3 / tracer=AV45)
-    - has AV1451 baseline tau PUP (OASIS3_AV1451 only; OASIS3_AV1451L excluded)
-    - has at least one MR session containing DWI
-    - worst pairwise temporal gap ≤ 60 days across the chosen
-      AV45 PUP, AV1451 PUP, and DWI MR sessions
-  expected_n: 68
+    - has at least one MR session with a tensor-fittable DWI run
+      (i.e. a DWI run whose SeriesDescription is not "Axial_DWI")
+    - has at least one complete UDS Form B4 (CDR) visit (non-null
+      CDRSUM and the six component scores)
+    - some (DWI session, CDR visit) pair falls within 365 days
+  expected_n: 1013
 
 mni_template:
-  # The MNI152 reference all four image features are warped into.
+  # The MNI152 reference all image features are warped into.
   # Downloaded once on first pipeline run; cached in <dest>/mni152/.
   name: MNI152NLin2009cAsym
   resolution_mm: 1
@@ -47,8 +46,7 @@ pipeline:
 
 outputs:
   # What the processed directory contains
-  - "<sbj>_amyloid_suvr.nii.gz"
-  - "<sbj>_tau_suvr.nii.gz"
+  - "<sbj>_t1.nii.gz"
   - "<sbj>_fa.nii.gz"
   - "<sbj>_md.nii.gz"
   - mni_template.nii.gz

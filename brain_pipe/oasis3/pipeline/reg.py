@@ -1,25 +1,23 @@
-"""Stage 5: register every cohort subject's four image features to MNI152.
+"""Stage 5: register every cohort subject's image features to MNI152.
 
 Per subject (parallel over the cohort):
 
 1. ``SyN`` register T1w → MNI152 (the per-subject anchor).
 2. ``Rigid`` register b0 → T1w (b0 = mean of the DWI's b=0 volumes).
-3. Apply the T1→MNI warp to the PUP AV45 SUVR and PUP AV1451 SUVR
-   (both are already in T1 space, courtesy of PUP).
+3. Apply the T1→MNI warp to the T1 itself.
 4. Compose (b0→T1) ∘ (T1→MNI) and apply to FA, MD.
 
-All four output NIfTIs are multiplied by the MNI brain mask
-before writing — every subject lives in the same template space,
-so the group mask is canonical; pre-masking removes downstream
-mask-juggling and fixes viewer dynamic-range issues caused by
-out-of-brain outliers (e.g. MD values up to ~50 mm/ms in CSF and
-air dominating the colormap). This is the same convention used by
-ADNI / fMRIPrep / HCP-A/D for atlas-space deliverables.
+All output NIfTIs are multiplied by the MNI brain mask before writing
+— every subject lives in the same template space, so the group mask is
+canonical; pre-masking removes downstream mask-juggling and fixes
+viewer dynamic-range issues caused by out-of-brain outliers (e.g. MD
+values up to ~50 mm/ms in CSF and air dominating the colormap). This
+is the same convention used by ADNI / fMRIPrep / HCP-A/D for atlas-
+space deliverables.
 
 Outputs in ``dest`` (all in MNI152 on the same grid, brain-masked):
 
-    <sbj>_amyloid_suvr.nii.gz
-    <sbj>_tau_suvr.nii.gz
+    <sbj>_t1.nii.gz
     <sbj>_fa.nii.gz
     <sbj>_md.nii.gz
     mni_template.nii.gz
@@ -95,57 +93,16 @@ def _find_dwi(scans_dir, mr_id):
         return None
     for d in sorted(session_root.glob("dwi*-dwi")):
         nifti_files = d / "resources" / "NIFTI" / "files"
-        # sub-*_dwi.nii.gz is the DWI itself; fa.nii.gz / md.nii.gz are
-        # stage-4 outputs that live in the same directory.
         dwi = next(iter(nifti_files.glob("sub-*_dwi.nii.gz")), None)
         if dwi is not None:
             return nifti_files, dwi
     return None
 
 
-def _find_pup_suvr_4dfp(pup_dir, pup_id):
-    """A PUP session's SUVR 4dfp triplet stem (``.4dfp.img`` path).
-
-    PUP ships its SUVR images in WashU's legacy 4dfp format, not NIfTI.
-    We target the ``*_msum_SUVR.4dfp.img`` (the volumetric SUVR) and
-    exclude the ``_g8`` Gaussian-smoothed variant since we apply our
-    own SyN warp with built-in smoothing downstream.
-    """
-    session = pup_dir / pup_id
-    if not session.exists():
-        return None
-    for p in sorted(session.glob("*_msum_SUVR.4dfp.img")):
-        if "_g8" in p.name:
-            continue
-        return p
-    return None
-
-
-def _ensure_nii_from_4dfp(img_path):
-    """Materialize a ``.nii.gz`` alongside a ``.4dfp.img`` for ANTs.
-
-    ANTs reads from filesystem paths and doesn't grok 4dfp, so we
-    convert once via :mod:`brain_pipe.oasis3.pipeline.fourdfp` and
-    cache the result. Idempotent.
-    """
-    img_path = Path(img_path)
-    # Strip ".4dfp.img" -> stem; append ".nii.gz".
-    stem = img_path.name[: -len(".4dfp.img")]
-    nii_path = img_path.parent / f"{stem}.nii.gz"
-    if nii_path.exists():
-        return nii_path
-    from brain_pipe.oasis3.pipeline.fourdfp import load as load_4dfp
-
-    nii = load_4dfp(img_path)
-    nii.to_filename(str(nii_path))
-    return nii_path
-
-
 def _extract_b0(dwi_nii, bval_path):
     """Mean over the DWI's b=0 volumes; written as ``b0.nii.gz``
     next to the DWI. Idempotent.
     """
-    import ants
     import nibabel as nib
 
     folder = dwi_nii.parent
@@ -167,9 +124,9 @@ def _extract_b0(dwi_nii, bval_path):
 
 
 def _register_one(sbj, t1_path, dwi_dir, dwi_nii, bval_path,
-                  amyloid_path, tau_path, mni_t1_path, mni_mask_path,
+                  mni_t1_path, mni_mask_path,
                   dest, random_seed=1):
-    """Register one subject; write four MNI-space NIfTIs into ``dest``."""
+    """Register one subject; write t1/fa/md MNI-space NIfTIs into ``dest``."""
     import ants
 
     mni = ants.image_read(str(mni_t1_path))
@@ -195,27 +152,9 @@ def _register_one(sbj, t1_path, dwi_dir, dwi_nii, bval_path,
     b0_to_t1_xforms = b0_to_t1["fwdtransforms"]
 
     # ANTs convention: transforms in transformlist apply right-to-left.
-    # Moving an image from b0 space -> MNI: apply b0->T1 first, then
-    # T1->MNI -> [t1_to_mni, b0_to_t1].
+    # b0 space -> MNI: apply b0->T1 first, then T1->MNI ->
+    # [t1_to_mni, b0_to_t1].
     b0_to_mni_xforms = t1_to_mni_xforms + b0_to_t1_xforms
-
-    # 3. PUP's SUVRs are in WashU's atlas-aligned "111" frame, NOT in
-    # the native-T1 NIfTI's world frame (the per-subject T1 PUP
-    # coregistered to was a FreeSurfer-resampled copy we don't pull
-    # from XNAT). A rigid SUVR->T1 with Mattes MI realigns them; PET
-    # contrast and T1 contrast are statistically dependent but not
-    # linearly related, so MI is the right cost. Each tracer gets its
-    # own rigid since their atlas alignments can drift independently.
-    def _rigid_suvr_to_t1(suvr_path):
-        suvr = ants.image_read(str(suvr_path))
-        return ants.registration(
-            fixed=t1, moving=suvr,
-            type_of_transform="Rigid", aff_metric="mattes",
-            random_seed=random_seed,
-        )["fwdtransforms"]
-
-    amyloid_to_t1_xforms = _rigid_suvr_to_t1(amyloid_path)
-    tau_to_t1_xforms = _rigid_suvr_to_t1(tau_path)
 
     fa_path = dwi_dir / "fa.nii.gz"
     md_path = dwi_dir / "md.nii.gz"
@@ -231,21 +170,18 @@ def _register_one(sbj, t1_path, dwi_dir, dwi_nii, bval_path,
         # grid as the canonical group mask, so masking here means
         # downstream voxelwise stats can drop the mask-juggling and
         # viewers auto-fit colormaps to the in-brain dynamic range.
-        # Matches the convention used by ADNI / fMRIPrep / HCP-A/D for
-        # their atlas-space deliverables.
         (out * mni_mask).to_file(str(Path(dest) / f"{sbj}_{out_name}.nii.gz"))
 
+    _warp(t1_path, "t1", t1_to_mni_xforms)
     _warp(fa_path, "fa", b0_to_mni_xforms)
     _warp(md_path, "md", b0_to_mni_xforms)
-    _warp(amyloid_path, "amyloid_suvr", t1_to_mni_xforms + amyloid_to_t1_xforms)
-    _warp(tau_path, "tau_suvr", t1_to_mni_xforms + tau_to_t1_xforms)
 
     print(f"[DONE] {sbj}")
 
 
 def register_cohort(cohort_csv, raw_dir, dest, manifest, n_jobs=1):
-    """Register every cohort subject to MNI152; write the four
-    image features plus ``mni_template.nii.gz`` and ``group_mask.nii.gz``.
+    """Register every cohort subject to MNI152; write t1, fa, md
+    plus ``mni_template.nii.gz`` and ``group_mask.nii.gz``.
     """
     from joblib import Parallel, delayed
 
@@ -255,7 +191,6 @@ def register_cohort(cohort_csv, raw_dir, dest, manifest, n_jobs=1):
     dest.mkdir(parents=True, exist_ok=True)
 
     scans_dir = raw_dir / "scans"
-    pup_dir = raw_dir / "pup"
 
     print("  resolving MNI152 template")
     mni_t1, mni_mask = _resolve_mni(dest)
@@ -271,9 +206,7 @@ def register_cohort(cohort_csv, raw_dir, dest, manifest, n_jobs=1):
         sbj = row["subject_id"]
         t1 = _find_t1(scans_dir, row["dwi_mr_id"])
         dwi_found = _find_dwi(scans_dir, row["dwi_mr_id"])
-        amyloid_4dfp = _find_pup_suvr_4dfp(pup_dir, row["av45_pup_id"])
-        tau_4dfp = _find_pup_suvr_4dfp(pup_dir, row["tau_pup_id"])
-        if not (t1 and dwi_found and amyloid_4dfp and tau_4dfp):
+        if not (t1 and dwi_found):
             missing.append(sbj)
             continue
         dwi_dir, dwi_nii = dwi_found
@@ -286,9 +219,7 @@ def register_cohort(cohort_csv, raw_dir, dest, manifest, n_jobs=1):
         if bval is None:
             missing.append(sbj)
             continue
-        amyloid = _ensure_nii_from_4dfp(amyloid_4dfp)
-        tau = _ensure_nii_from_4dfp(tau_4dfp)
-        work.append((sbj, t1, dwi_dir, dwi_nii, bval, amyloid, tau))
+        work.append((sbj, t1, dwi_dir, dwi_nii, bval))
 
     if missing:
         print(f"  [WARN] skipping {len(missing)} subjects with missing inputs: "
@@ -298,8 +229,8 @@ def register_cohort(cohort_csv, raw_dir, dest, manifest, n_jobs=1):
     print(f"  registering {len(work)} subjects (n_jobs={n_jobs})")
     Parallel(n_jobs=n_jobs, verbose=10)(
         delayed(_register_one)(
-            sbj, t1, dwi_dir, dwi_nii, bval, amyloid, tau,
+            sbj, t1, dwi_dir, dwi_nii, bval,
             mni_t1, mni_mask, dest,
         )
-        for sbj, t1, dwi_dir, dwi_nii, bval, amyloid, tau in work
+        for sbj, t1, dwi_dir, dwi_nii, bval in work
     )

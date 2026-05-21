@@ -23,7 +23,7 @@ def _resolve_dest(dest=None):
     return resolve_dest("oasis3", dest)
 
 
-def prepare(bundle=None, dest=None, nitrc_user=None):
+def prepare(bundle=None, dest=None, nitrc_user=None, nitrc_password=None):
     """Extract the OASIS-3 metadata bundle and build the cohort + xfeat
     table.
 
@@ -32,7 +32,7 @@ def prepare(bundle=None, dest=None, nitrc_user=None):
     - ``prepare`` (here): downloads (or accepts) the metadata bundle,
       extracts the CSVs, builds ``cohort_sessions.csv`` and
       ``covariates.csv``.
-    - ``fetch``: downloads T1w+DWI+SUVR imaging for the cohort subjects.
+    - ``fetch``: downloads T1w+DWI imaging for the cohort subjects.
     - ``process``: DTI fit + MNI152 registration + final covariates.
 
     By default, downloads ``OASIS3_data_files.zip`` (~67 MB) from
@@ -53,6 +53,10 @@ def prepare(bundle=None, dest=None, nitrc_user=None):
             ``platformdirs.user_data_dir('brain_pipe')/oasis3``.
         nitrc_user: NITRC-IR username for the bundle download. Ignored
             when ``bundle`` is provided. Prompted if omitted.
+        nitrc_password: NITRC-IR password for the bundle download.
+            Prompted via getpass if omitted. Provided primarily so the
+            CLI's ``all`` subcommand can prompt once and pass through
+            to both ``prepare`` and ``fetch``.
 
     Returns:
         ``Path`` to ``dest``. The two output CSVs live at
@@ -66,7 +70,7 @@ def prepare(bundle=None, dest=None, nitrc_user=None):
     raw_dir = dest / "raw"
 
     if bundle is None:
-        bundle = _fetch_bundle(raw_dir, nitrc_user)
+        bundle = _fetch_bundle(raw_dir, nitrc_user, nitrc_password)
 
     print("[1/2] extracting bundle CSVs")
     bundle_paths = bundle_stage.extract(bundle, raw_dir)
@@ -80,7 +84,7 @@ def prepare(bundle=None, dest=None, nitrc_user=None):
     return dest
 
 
-def _fetch_bundle(raw_dir, nitrc_user):
+def _fetch_bundle(raw_dir, nitrc_user, nitrc_password=None):
     """Download OASIS3_data_files.zip to ``raw_dir`` via NITRC-IR's
     XNAT REST API. Idempotent (reuses an existing file with a message).
     """
@@ -89,23 +93,32 @@ def _fetch_bundle(raw_dir, nitrc_user):
         print(f"bundle already downloaded at {out_path} — reusing")
         return out_path
 
-    import getpass
-
     from brain_pipe.oasis3.pipeline.xnat import NitrcXnat
+
+    nitrc_user, nitrc_password = _prompt_creds(nitrc_user, nitrc_password)
+
+    print(f"[downloading bundle from NITRC-IR -> {out_path}]")
+    with NitrcXnat(nitrc_user, nitrc_password) as xnat:
+        xnat.download_data_files_bundle(out_path)
+    return out_path
+
+
+def _prompt_creds(nitrc_user, nitrc_password):
+    """Prompt for missing NITRC-IR username/password. Lifted out so the
+    CLI's ``all`` mode can prompt once and pass to both prepare+fetch.
+    """
+    import getpass
 
     if nitrc_user is None:
         nitrc_user = input("NITRC-IR username: ").strip()
         while not nitrc_user:
             nitrc_user = input("NITRC-IR username (required): ").strip()
-    password = getpass.getpass(f"NITRC-IR password for {nitrc_user}: ")
-
-    print(f"[downloading bundle from NITRC-IR -> {out_path}]")
-    with NitrcXnat(nitrc_user, password) as xnat:
-        xnat.download_data_files_bundle(out_path)
-    return out_path
+    if nitrc_password is None:
+        nitrc_password = getpass.getpass(f"NITRC-IR password for {nitrc_user}: ")
+    return nitrc_user, nitrc_password
 
 
-def fetch(dest=None, nitrc_user=None):
+def fetch(dest=None, nitrc_user=None, nitrc_password=None):
     """Download cohort imaging from NITRC-IR via the XNAT REST API.
 
     Second of three stages. ``prepare(bundle=...)`` must have run
@@ -116,11 +129,8 @@ def fetch(dest=None, nitrc_user=None):
     to disk). Username can be passed explicitly via ``nitrc_user=``
     or will also be prompted.
 
-    For each cohort subject, fetches:
-
-    - T1w + DWI scans from the chosen MR session
-    - the AV45 PUP's SUVR file(s)
-    - the AV1451 PUP's SUVR file(s)
+    For each cohort subject, fetches T1w + DWI scans from the chosen
+    MR session.
 
     The downloader is fully Python (uses ``requests``, no bash
     subprocess) so it works on Linux / Mac / Windows. Per-file
@@ -131,12 +141,14 @@ def fetch(dest=None, nitrc_user=None):
         dest: cache location; defaults to
             ``platformdirs.user_data_dir('brain_pipe')/oasis3``.
         nitrc_user: NITRC-IR username. Prompted if omitted.
+        nitrc_password: NITRC-IR password. Prompted via getpass if
+            omitted. Provided primarily so the CLI's ``all`` subcommand
+            can prompt once and pass through to both ``prepare`` and
+            ``fetch``.
 
     Returns:
-        ``Path`` to ``dest/raw/`` (where scans/ and pup/ subdirs live).
+        ``Path`` to ``dest/raw/`` (where the ``scans/`` subdir lives).
     """
-    import getpass
-
     dest = _resolve_dest(dest)
     cohort_csv = dest / "cohort_sessions.csv"
     if not cohort_csv.exists():
@@ -147,17 +159,13 @@ def fetch(dest=None, nitrc_user=None):
     raw_dir = dest / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
 
-    if nitrc_user is None:
-        nitrc_user = input("NITRC-IR username: ").strip()
-        while not nitrc_user:
-            nitrc_user = input("NITRC-IR username (required): ").strip()
-    password = getpass.getpass(f"NITRC-IR password for {nitrc_user}: ")
+    nitrc_user, nitrc_password = _prompt_creds(nitrc_user, nitrc_password)
 
     from brain_pipe.oasis3.pipeline import fetch_imaging
     from brain_pipe.oasis3.pipeline.xnat import NitrcXnat
 
     print(f"[authenticating against NITRC-IR]")
-    with NitrcXnat(nitrc_user, password) as xnat:
+    with NitrcXnat(nitrc_user, nitrc_password) as xnat:
         fetch_imaging.fetch_cohort(cohort_csv, raw_dir, xnat)
 
     print()
@@ -185,7 +193,7 @@ def process(dest=None, n_jobs=1, n_jobs_dti=None):
 
     Returns:
         ``pathlib.Path`` to a directory of
-        ``<sbj>_{amyloid_suvr,tau_suvr,fa,md}.nii.gz`` (all in MNI152),
+        ``<sbj>_{t1,fa,md}.nii.gz`` (all in MNI152),
         plus ``mni_template.nii.gz``, ``group_mask.nii.gz``,
         ``cohort_sessions.csv``, and ``covariates.csv``.
     """

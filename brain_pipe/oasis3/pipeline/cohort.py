@@ -1,18 +1,28 @@
 """Cohort selection + covariates from OASIS-3 bundle CSVs.
 
 A subject is in the cohort iff:
-1. they have an AV45 PUP entry (amyloid),
-2. they have a baseline AV1451 PUP entry (tau, OASIS3_AV1451 project — the
-   longitudinal-follow-up OASIS3_AV1451L project is excluded),
-3. they have an MR session with a DWI scan,
-4. and the (av45_pup, av1451_pup, dwi_mr) triplet that minimizes the
-   worst pairwise |days-from-entry| gap has a worst gap of at most
-   ``COHORT_WINDOW_DAYS`` (default 60).
 
-For each cohort subject we also pull from UDS form B4 (which carries
-CDR, MMSE, free-text dx, and per-visit age in one row) and the
-centiloid table to populate the xfeat fields. Sex comes from
+1. they have at least one MR session with a tensor-fittable DWI run
+   (i.e. some run whose ``SeriesDescription`` is not in the
+   ``_DEGENERATE_DWI_SERIES`` set; T1 is implied — every OASIS-3 MR
+   session ships a T1w),
+2. they have at least one complete UDS Form B4 (CDR) visit (non-null
+   ``CDRSUM`` and the six component scores), and
+3. some (DWI session, CDR visit) pair for the subject falls within a
+   ``COHORT_WINDOW_DAYS``-day gap.
+
+For each cohort subject we select the (DWI MR session, CDR visit) pair
+that minimizes ``|day(DWI) - day(CDR)|``, with a deterministic
+tiebreak by earliest DWI day then earliest CDR day. The chosen CDR
+visit drives the CDR target columns (CDRSUM + six components). The
+chosen MR session's age is computed as ``AgeatEntry + dwi_day/365.25``.
+Demographics (sex, education, APOE, family history) come from
 ``OASIS3_demographics.csv``.
+
+Cohort D (the current target population, focused on CDR prediction):
+PET is intentionally excluded — OASIS-3's tau PET (AV1451) was
+preferentially given to cognitively-healthy participants, so the prior
+A/T/N cohort had no CDR variance.
 """
 
 import re
@@ -20,11 +30,23 @@ from pathlib import Path
 
 import pandas as pd
 
-COHORT_WINDOW_DAYS = 60
-CLINICAL_WINDOW_DAYS = 365  # NACC standard
+COHORT_WINDOW_DAYS = 365
+
+# DWI ``SeriesDescription`` values known to be 1-direction (1 b0 + 1
+# b1000) trace-weighted localizers — mathematically singular for any
+# tensor fit. Identified empirically from the OASIS-3 bundle (the
+# OASIS3_MR_json.csv ships per-run SeriesDescription but no direct
+# n_dirs / n_volumes column). The Biograph_mMR PET/MR sites used this
+# 2-volume ``Axial_DWI`` as their entire diffusion acquisition for a
+# subset of subjects.
+_DEGENERATE_DWI_SERIES = frozenset({"Axial_DWI"})
+
+# CDR Sum-of-Boxes is the regression target; the six component scores
+# are also returned so downstream models can fit either CDRSUM or its
+# components.
+_CDR_COMPONENTS = ("memory", "orient", "judgment", "commun", "homehobb", "perscare")
 
 _DAY_RE = re.compile(r"_d(\d+)$")
-_MR_FROM_PUP_RE = re.compile(r"^(OAS\d+)_MR_d\d+$")
 
 
 def _extract_day(series):
@@ -32,163 +54,167 @@ def _extract_day(series):
 
 
 def _mr_sessions_with_dwi(mr_json_csv):
-    """Return DataFrame of (Subject, mr_id, day) for MR sessions
-    containing at least one DWI scan. Bundle's per-scan CSV is
-    dedup'ed by session label.
+    """Return DataFrame of (Subject, mr_id, day, scanner,
+    dwi_series_descriptions) for MR sessions containing at least one
+    DWI scan whose acquisition can support a tensor fit.
+
+    Filtering rule: drop sessions whose every DWI run has a
+    ``SeriesDescription`` in :data:`_DEGENERATE_DWI_SERIES` (e.g.,
+    ``Axial_DWI`` = 1 b0 + 1 b1000, mathematically singular).
     """
     mr = pd.read_csv(mr_json_csv, low_memory=False)
-    dwi_rows = mr[mr["scan category"] == "dwi"][["subject_id", "label"]]
-    sessions = dwi_rows.drop_duplicates().rename(
+    dwi_rows = mr[mr["scan category"] == "dwi"][
+        ["subject_id", "label", "ManufacturersModelName", "SeriesDescription"]
+    ].copy()
+
+    grouped = dwi_rows.groupby(["subject_id", "label"], dropna=False).agg(
+        scanner=("ManufacturersModelName",
+                 lambda s: "|".join(sorted(set(s.dropna().astype(str))))),
+        dwi_series_descriptions=("SeriesDescription",
+                                 lambda s: "|".join(sorted(set(s.dropna().astype(str))))),
+    ).reset_index()
+
+    def _has_non_degenerate(desc_str):
+        descs = set(desc_str.split("|")) if desc_str else set()
+        if not descs:
+            return True  # unknown != degenerate (runtime check in dti.py)
+        return any(d not in _DEGENERATE_DWI_SERIES for d in descs)
+
+    keep = grouped["dwi_series_descriptions"].apply(_has_non_degenerate)
+    dropped = int((~keep).sum())
+    if dropped:
+        print(f"    dropped {dropped} DWI sessions whose only run is "
+              f"a degenerate {sorted(_DEGENERATE_DWI_SERIES)} series")
+    sessions = grouped[keep].rename(
         columns={"subject_id": "Subject", "label": "mr_id"}
-    )
+    ).copy()
     sessions["day"] = _extract_day(sessions["mr_id"])
-    return sessions.reset_index(drop=True)
+    return sessions[
+        ["Subject", "mr_id", "day", "scanner", "dwi_series_descriptions"]
+    ].sort_values(["Subject", "day", "mr_id"]).reset_index(drop=True)
 
 
-def _av45_pup(pup_csv):
-    """PUP-processed AV45 amyloid scans (from OASIS3_PUP.csv, filtered
-    to tracer == 'AV45')."""
-    pup = pd.read_csv(pup_csv, low_memory=False)
-    pup = pup[pup["tracer"] == "AV45"].copy()
-    pup["Subject"] = pup["MRId"].str.extract(_MR_FROM_PUP_RE, expand=False)
-    pup = pup.dropna(subset=["Subject"]).copy()
-    pup["day"] = _extract_day(pup["PUP_PUPTIMECOURSEDATA ID"])
-    return pup[
-        ["Subject", "PUP_PUPTIMECOURSEDATA ID", "MRId", "day"]
-    ].rename(columns={"PUP_PUPTIMECOURSEDATA ID": "pup_id", "MRId": "mr_id"}
-             ).reset_index(drop=True)
+def _complete_cdr_visits(udsb4_csv):
+    """UDS Form B4 visits with non-null CDRSUM + the six component
+    scores. Returned columns: ``OASISID``, ``days_to_visit``,
+    ``CDRSUM``, and the six components.
+    """
+    uds = pd.read_csv(udsb4_csv, low_memory=False)
+    need = ["CDRSUM"] + list(_CDR_COMPONENTS)
+    uds = uds.dropna(subset=need).copy()
+    return uds[["OASISID", "days_to_visit"] + need].sort_values(
+        ["OASISID", "days_to_visit"]
+    ).reset_index(drop=True)
 
 
-def _av1451_pup_baseline(av1451_csv):
-    """PUP-processed AV1451 tau scans, baseline-only — the file ships a
-    handful of OASIS3_AV1451L rows mixed in; we filter on Project."""
-    pup = pd.read_csv(av1451_csv, low_memory=False)
-    pup = pup[pup["Project"] == "OASIS3_AV1451"].copy()
-    pup["Subject"] = pup["MRId"].str.extract(_MR_FROM_PUP_RE, expand=False)
-    pup = pup.dropna(subset=["Subject"]).copy()
-    pup["day"] = _extract_day(pup["PUP_PUPTIMECOURSEDATA ID"])
-    return pup[
-        ["Subject", "PUP_PUPTIMECOURSEDATA ID", "MRId", "day"]
-    ].rename(columns={"PUP_PUPTIMECOURSEDATA ID": "pup_id", "MRId": "mr_id"}
-             ).reset_index(drop=True)
-
-
-def _best_triplet(tau_day, av45_days, dwi_days):
-    """Return ``(av45_idx, dwi_idx, worst_pairwise_gap)`` for the triplet
-    that minimizes the worst pairwise gap among (tau, av45, dwi). Tau
-    is fixed; we sweep all (av45, dwi) candidate pairs."""
+def _best_pair(dwi_rows, cdr_rows):
+    """Return ``(dwi_idx, cdr_idx, gap)`` for the pair minimizing
+    ``|dwi_day - cdr_day|``. Deterministic tiebreak: smallest DWI day,
+    then smallest CDR day. ``dwi_rows`` / ``cdr_rows`` are sorted by
+    day already so iteration order is reproducible.
+    """
     best = None
-    for ai, a in enumerate(av45_days):
-        for di, d in enumerate(dwi_days):
-            worst = max(abs(a - tau_day), abs(d - tau_day), abs(a - d))
-            if best is None or worst < best[2]:
-                best = (ai, di, worst)
-    return best
+    for di, dday in enumerate(dwi_rows["day"].values):
+        for ci, cday in enumerate(cdr_rows["days_to_visit"].values):
+            gap = abs(int(dday) - int(cday))
+            if best is None:
+                best = (gap, di, ci, int(dday), int(cday))
+                continue
+            cur = (gap, int(dday), int(cday))
+            ref = (best[0], best[3], best[4])
+            if cur < ref:
+                best = (gap, di, ci, int(dday), int(cday))
+    return best[1], best[2], best[0]
 
 
-def _build_sessions(mr_dwi, av45, tau, window_days):
-    """Per-subject session selection: AV1451-anchored on baseline tau
-    visit; pick the (av45, dwi) pair minimizing worst pairwise gap;
-    drop subjects whose best triplet exceeds ``window_days``."""
-    subjects = set(mr_dwi["Subject"]) & set(av45["Subject"]) & set(tau["Subject"])
+def _build_sessions(mr_dwi, cdr_visits, window_days):
+    """Per-subject session selection: pick the (DWI, CDR) pair
+    minimizing |gap|; drop subjects whose best pair exceeds
+    ``window_days``.
+    """
+    subjects = sorted(set(mr_dwi["Subject"]) & set(cdr_visits["OASISID"]))
     rows = []
-    for sbj in sorted(subjects):
-        tau_sub = tau[tau["Subject"] == sbj]
-        # baseline tau == earliest day for this subject in the AV1451 file
-        tau_row = tau_sub.loc[tau_sub["day"].idxmin()]
-        av45_sub = av45[av45["Subject"] == sbj].reset_index(drop=True)
+    for sbj in subjects:
         dwi_sub = mr_dwi[mr_dwi["Subject"] == sbj].reset_index(drop=True)
-        ai, di, worst = _best_triplet(
-            tau_row["day"], av45_sub["day"].values, dwi_sub["day"].values,
-        )
-        if worst > window_days:
+        cdr_sub = cdr_visits[cdr_visits["OASISID"] == sbj].reset_index(drop=True)
+        di, ci, gap = _best_pair(dwi_sub, cdr_sub)
+        if gap > window_days:
             continue
-        ar = av45_sub.iloc[ai]
         dr = dwi_sub.iloc[di]
+        cr = cdr_sub.iloc[ci]
         rows.append({
-            "subject_id":     sbj,
-            "tau_pup_id":     tau_row["pup_id"],
-            "tau_mr_id":      tau_row["mr_id"],
-            "tau_day":        int(tau_row["day"]),
-            "av45_pup_id":    ar["pup_id"],
-            "av45_mr_id":     ar["mr_id"],
-            "av45_day":       int(ar["day"]),
-            "dwi_mr_id":      dr["mr_id"],
-            "dwi_day":        int(dr["day"]),
-            "worst_gap_days": int(worst),
+            "subject_id":              sbj,
+            "dwi_mr_id":               dr["mr_id"],
+            "dwi_day":                 int(dr["day"]),
+            "cdr_visit_day":           int(cr["days_to_visit"]),
+            "dwi_scanner":             dr["scanner"],
+            "dwi_series_descriptions": dr["dwi_series_descriptions"],
+            "worst_gap_days":          int(gap),
+            # Carried for covariates.csv but not written to cohort_sessions.csv.
+            "_cdr_sum":                float(cr["CDRSUM"]),
+            **{f"_cdr_{c}": float(cr[c]) for c in _CDR_COMPONENTS},
         })
     return pd.DataFrame(rows)
 
 
-def _attach_clinical(cohort, udsb4_csv, window_days):
-    """Match each cohort subject's tau_day to the UDSb4 visit closest in
-    time within ±window_days. UDSb4 carries CDR + MMSE + free-text dx +
-    age all on the same row, so this is one join across all four."""
-    udsb4 = pd.read_csv(udsb4_csv, low_memory=False)
-    out = cohort.copy()
-    for col in ("cdr", "mmse", "dx", "age"):
-        out[col] = pd.NA
-    for i, row in out.iterrows():
-        visits = udsb4[udsb4["OASISID"] == row["subject_id"]]
-        if visits.empty:
-            continue
-        gap = (visits["days_to_visit"] - row["tau_day"]).abs()
-        in_window = visits[gap <= window_days]
-        if in_window.empty:
-            continue
-        best = in_window.loc[gap[in_window.index].idxmin()]
-        out.at[i, "cdr"]  = best["CDRTOT"]
-        out.at[i, "mmse"] = best["MMSE"]
-        out.at[i, "dx"]   = best["dx1"]
-        out.at[i, "age"]  = best["age at visit"]
-    return out
+def _build_covariates(cohort, demographics_csv):
+    """Build covariates.csv columns from the cohort + demographics.
 
-
-def _attach_demographics(cohort, demographics_csv):
-    """Pull sex from OASIS3_demographics.csv. NACC encodes GENDER as
-    1 = Male, 2 = Female — remap to 'M'/'F' for human-readable xfeat.
+    Sex: OASIS encodes GENDER as 1 = Male, 2 = Female (matches NACC /
+    OASIS data dictionary v2.3). Age at the chosen MR session is
+    ``AgeatEntry + dwi_day / 365.25`` (AgeatEntry is years at subject
+    enrollment; days are wall-clock days from enrollment).
     """
     demo = pd.read_csv(demographics_csv, low_memory=False)
     sex_map = {1: "M", 2: "F"}
-    sex_by_sbj = demo.set_index("OASISID")["GENDER"].map(sex_map).to_dict()
-    out = cohort.copy()
-    out["sex"] = out["subject_id"].map(sex_by_sbj)
-    return out
+    demo_idx = demo.set_index("OASISID")
+    rows = []
+    for _, row in cohort.iterrows():
+        sbj = row["subject_id"]
+        if sbj in demo_idx.index:
+            d = demo_idx.loc[sbj]
+            age = float(d["AgeatEntry"]) + float(row["dwi_day"]) / 365.25
+            sex = sex_map.get(int(d["GENDER"])) if pd.notna(d["GENDER"]) else pd.NA
+            educ = d["EDUC"]
+            apoe = d["APOE"]
+            daddem = d["daddem"]
+            momdem = d["momdem"]
+        else:
+            age = pd.NA
+            sex = pd.NA
+            educ = pd.NA
+            apoe = pd.NA
+            daddem = pd.NA
+            momdem = pd.NA
+        rows.append({
+            "subject_id": sbj,
+            "age":        age,
+            "sex":        sex,
+            "educ":       educ,
+            "apoe":       apoe,
+            "daddem":     daddem,
+            "momdem":     momdem,
+            "cdr_sum":    row["_cdr_sum"],
+            "memory":     row["_cdr_memory"],
+            "orient":     row["_cdr_orient"],
+            "judgment":   row["_cdr_judgment"],
+            "commun":     row["_cdr_commun"],
+            "homehobb":   row["_cdr_homehobb"],
+            "perscare":   row["_cdr_perscare"],
+        })
+    return pd.DataFrame(rows)
 
 
-def _attach_centiloid(cohort, centiloid_csv):
-    """Match each cohort row's av45_day to the centiloid row for that
-    subject's AV45 session. Centiloid_fSUVR_TOT_CORTMEAN is the
-    standard SUVR-derived centiloid."""
-    cl = pd.read_csv(centiloid_csv, low_memory=False)
-    av45 = cl[cl["tracer"] == "AV45"].copy()
-    av45["day"] = _extract_day(av45["oasis_session_id"])
-    out = cohort.copy()
-    out["centiloid"] = pd.NA
-    for i, row in out.iterrows():
-        match = av45[
-            (av45["subject_id"] == row["subject_id"])
-            & (av45["day"] == row["av45_day"])
-        ]
-        if not match.empty:
-            out.at[i, "centiloid"] = match.iloc[0]["Centiloid_fSUVR_TOT_CORTMEAN"]
-    return out
-
-
-def build(bundle_paths, dest,
-          cohort_window_days=COHORT_WINDOW_DAYS,
-          clinical_window_days=CLINICAL_WINDOW_DAYS):
+def build(bundle_paths, dest, cohort_window_days=COHORT_WINDOW_DAYS):
     """Build cohort_sessions.csv + covariates.csv from extracted bundle CSVs.
 
     Args:
         bundle_paths: dict from :func:`brain_pipe.oasis3.pipeline.bundle.extract`
-            mapping logical names ('mr_json', 'pup', 'av1451_pup',
-            'demographics', 'udsb4', 'centiloid') to Path.
+            mapping logical names ('mr_json', 'udsb4', 'demographics',
+            ...) to ``Path``.
         dest: directory where cohort_sessions.csv + covariates.csv land.
-        cohort_window_days: drop subjects whose worst pairwise gap
-            between (AV45, AV1451, DWI) sessions exceeds this.
-        clinical_window_days: drop the UDS visit if no row falls within
-            this of the subject's tau session (cdr/mmse/dx/age NaN).
+        cohort_window_days: drop subjects whose best (DWI, CDR) pair
+            has |gap| above this. Default 365 days.
 
     Returns:
         dict ``{'cohort_csv': Path, 'covariates_csv': Path}``.
@@ -198,28 +224,28 @@ def build(bundle_paths, dest,
 
     print("  reading bundle CSVs")
     mr_dwi = _mr_sessions_with_dwi(bundle_paths["mr_json"])
-    av45 = _av45_pup(bundle_paths["pup"])
-    tau = _av1451_pup_baseline(bundle_paths["av1451_pup"])
-    print(f"    MR sessions with DWI: {len(mr_dwi)}, AV45 PUP: {len(av45)}, "
-          f"AV1451 PUP (baseline): {len(tau)}")
+    cdr = _complete_cdr_visits(bundle_paths["udsb4"])
+    print(f"    MR sessions with non-degenerate DWI: {len(mr_dwi)} "
+          f"({mr_dwi['Subject'].nunique()} subjects); "
+          f"complete UDSb4 visits: {len(cdr)} "
+          f"({cdr['OASISID'].nunique()} subjects)")
 
-    print(f"  selecting cohort (worst pairwise gap <= {cohort_window_days} days)")
-    cohort = _build_sessions(mr_dwi, av45, tau, cohort_window_days)
+    print(f"  selecting cohort (|DWI - CDR| <= {cohort_window_days} days)")
+    cohort = _build_sessions(mr_dwi, cdr, cohort_window_days)
     print(f"    cohort: {len(cohort)} subjects")
 
+    cohort_out = cohort[[
+        "subject_id", "dwi_mr_id", "dwi_day", "cdr_visit_day",
+        "dwi_scanner", "dwi_series_descriptions", "worst_gap_days",
+    ]]
     cohort_csv = dest / "cohort_sessions.csv"
-    cohort.to_csv(cohort_csv, index=False)
+    cohort_out.to_csv(cohort_csv, index=False)
     print(f"    wrote {cohort_csv}")
 
     print("  building covariates")
-    cov = cohort.copy()
-    cov = _attach_demographics(cov, bundle_paths["demographics"])
-    cov = _attach_clinical(cov, bundle_paths["udsb4"], clinical_window_days)
-    cov = _attach_centiloid(cov, bundle_paths["centiloid"])
-
-    cov_out = cov[["subject_id", "age", "sex", "cdr", "mmse", "dx", "centiloid"]]
+    cov = _build_covariates(cohort, bundle_paths["demographics"])
     cov_csv = dest / "covariates.csv"
-    cov_out.to_csv(cov_csv, index=False)
+    cov.to_csv(cov_csv, index=False)
     print(f"    wrote {cov_csv}")
 
     return {"cohort_csv": cohort_csv, "covariates_csv": cov_csv}

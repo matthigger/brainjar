@@ -7,7 +7,7 @@ import pandas as pd
 from brain_pipe.hcp_ya_open.fetch import resolve_dest
 from brain_pipe.oasis3.labels import LABELS
 
-_SBJ_RE = re.compile(r"^(OAS\d+)_(amyloid_suvr|tau_suvr|fa|md)\.nii\.gz$")
+_SBJ_RE = re.compile(r"^(OAS\d+)_(t1|fa|md)\.nii\.gz$")
 
 
 def _resolve_dest(dest=None):
@@ -26,7 +26,7 @@ def get_df_image(dest=None):
     """Return a DataFrame of per-subject image paths.
 
     Index: subject ID (str, e.g. ``OAS30001``).
-    Columns: ``amyloid_suvr``, ``tau_suvr``, ``fa``, ``md`` — absolute
+    Columns: ``t1``, ``fa``, ``md`` — absolute
     :class:`pathlib.Path` to the MNI152-registered per-subject volume.
     """
     dest = _resolve_dest(dest)
@@ -50,10 +50,13 @@ def get_df_image(dest=None):
 def get_df_xfeat(dest=None):
     """Return a covariates DataFrame indexed by subject ID.
 
-    Reads ``covariates.csv`` from the processed directory. Columns:
-    ``age``, ``sex``, ``cdr``, ``mmse``, ``dx``, ``centiloid`` —
-    NaN-filled where the OASIS-3 metadata did not supply a value
-    within the imaging visit window.
+    Reads ``covariates.csv`` from the processed directory. Demographic
+    columns: ``age``, ``sex``, ``educ``, ``apoe``, ``daddem``, ``momdem``.
+    CDR target columns (the prediction outcome): ``cdr_sum`` (CDR Sum of
+    Boxes, 0-18) and the six component scores ``memory``, ``orient``,
+    ``judgment``, ``commun``, ``homehobb``, ``perscare`` (each
+    0/0.5/1/2/3). NaN-filled where the OASIS-3 metadata did not supply
+    a value.
     """
     dest = _resolve_dest(dest)
     _check_ready(dest)

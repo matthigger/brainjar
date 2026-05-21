@@ -2,15 +2,22 @@
 
 LABELS = {
     # imaging modalities (columns of get_df_image)
-    "amyloid_suvr": "Amyloid SUVR (AV45)",
-    "tau_suvr": "Tau SUVR (AV1451)",
+    "t1": "T1-weighted (MNI-space)",
     "fa": "Fractional Anisotropy",
     "md": "Mean Diffusivity (mm$^2$/s)",
     # covariates (columns of get_df_xfeat)
-    "age": "Age (years)",
-    "sex": "Sex",
-    "cdr": "Clinical Dementia Rating",
-    "mmse": "Mini-Mental State Examination",
-    "dx": "Diagnosis",
-    "centiloid": "Centiloid (global amyloid)",
+    "age":      "Age (years)",
+    "sex":      "Sex",
+    "educ":     "Years of Education",
+    "apoe":     "APOE Genotype",
+    "daddem":   "Paternal History of Dementia",
+    "momdem":   "Maternal History of Dementia",
+    # CDR targets (the prediction outcome)
+    "cdr_sum":  "CDR Sum of Boxes",
+    "memory":   "CDR: Memory",
+    "orient":   "CDR: Orientation",
+    "judgment": "CDR: Judgment & Problem Solving",
+    "commun":   "CDR: Community Affairs",
+    "homehobb": "CDR: Home & Hobbies",
+    "perscare": "CDR: Personal Care",
 }
