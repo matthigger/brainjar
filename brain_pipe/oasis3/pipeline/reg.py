@@ -8,13 +8,15 @@ Per subject (parallel over the cohort):
    (both are already in T1 space, courtesy of PUP).
 4. Compose (b0→T1) ∘ (T1→MNI) and apply to FA, MD.
 
-After all subjects finish, copy the MNI152 brain mask to
-``group_mask.nii.gz`` (a fixed reference is preferable to a
-per-cohort intersection here — every subject lives in the same
-template space, and the MNI brain mask is the field-standard
-"voxels in brain" indicator).
+All four output NIfTIs are multiplied by the MNI brain mask
+before writing — every subject lives in the same template space,
+so the group mask is canonical; pre-masking removes downstream
+mask-juggling and fixes viewer dynamic-range issues caused by
+out-of-brain outliers (e.g. MD values up to ~50 mm/ms in CSF and
+air dominating the colormap). This is the same convention used by
+ADNI / fMRIPrep / HCP-A/D for atlas-space deliverables.
 
-Outputs in ``dest`` (all in MNI152 on the same grid):
+Outputs in ``dest`` (all in MNI152 on the same grid, brain-masked):
 
     <sbj>_amyloid_suvr.nii.gz
     <sbj>_tau_suvr.nii.gz
@@ -171,6 +173,7 @@ def _register_one(sbj, t1_path, dwi_dir, dwi_nii, bval_path,
     import ants
 
     mni = ants.image_read(str(mni_t1_path))
+    mni_mask = ants.image_read(str(mni_mask_path))
     t1 = ants.image_read(str(t1_path))
 
     # 1. T1 -> MNI nonlinear
@@ -224,7 +227,13 @@ def _register_one(sbj, t1_path, dwi_dir, dwi_nii, bval_path,
             transformlist=xforms,
             interpolator=interp,
         )
-        out.to_file(str(Path(dest) / f"{sbj}_{out_name}.nii.gz"))
+        # Zero out non-brain voxels: every subject is on the same MNI
+        # grid as the canonical group mask, so masking here means
+        # downstream voxelwise stats can drop the mask-juggling and
+        # viewers auto-fit colormaps to the in-brain dynamic range.
+        # Matches the convention used by ADNI / fMRIPrep / HCP-A/D for
+        # their atlas-space deliverables.
+        (out * mni_mask).to_file(str(Path(dest) / f"{sbj}_{out_name}.nii.gz"))
 
     _warp(fa_path, "fa", b0_to_mni_xforms)
     _warp(md_path, "md", b0_to_mni_xforms)
