@@ -196,6 +196,24 @@ def _register_one(sbj, t1_path, dwi_dir, dwi_nii, bval_path,
     # T1->MNI -> [t1_to_mni, b0_to_t1].
     b0_to_mni_xforms = t1_to_mni_xforms + b0_to_t1_xforms
 
+    # 3. PUP's SUVRs are in WashU's atlas-aligned "111" frame, NOT in
+    # the native-T1 NIfTI's world frame (the per-subject T1 PUP
+    # coregistered to was a FreeSurfer-resampled copy we don't pull
+    # from XNAT). A rigid SUVR->T1 with Mattes MI realigns them; PET
+    # contrast and T1 contrast are statistically dependent but not
+    # linearly related, so MI is the right cost. Each tracer gets its
+    # own rigid since their atlas alignments can drift independently.
+    def _rigid_suvr_to_t1(suvr_path):
+        suvr = ants.image_read(str(suvr_path))
+        return ants.registration(
+            fixed=t1, moving=suvr,
+            type_of_transform="Rigid", aff_metric="mattes",
+            random_seed=random_seed,
+        )["fwdtransforms"]
+
+    amyloid_to_t1_xforms = _rigid_suvr_to_t1(amyloid_path)
+    tau_to_t1_xforms = _rigid_suvr_to_t1(tau_path)
+
     fa_path = dwi_dir / "fa.nii.gz"
     md_path = dwi_dir / "md.nii.gz"
 
@@ -210,8 +228,8 @@ def _register_one(sbj, t1_path, dwi_dir, dwi_nii, bval_path,
 
     _warp(fa_path, "fa", b0_to_mni_xforms)
     _warp(md_path, "md", b0_to_mni_xforms)
-    _warp(amyloid_path, "amyloid_suvr", t1_to_mni_xforms)
-    _warp(tau_path, "tau_suvr", t1_to_mni_xforms)
+    _warp(amyloid_path, "amyloid_suvr", t1_to_mni_xforms + amyloid_to_t1_xforms)
+    _warp(tau_path, "tau_suvr", t1_to_mni_xforms + tau_to_t1_xforms)
 
     print(f"[DONE] {sbj}")
 
