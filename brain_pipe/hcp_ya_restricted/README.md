@@ -13,6 +13,20 @@ builds the cache locally.
 
 ## Use
 
+### CLI
+
+```bash
+# Default cache, look for RESTRICTED_*.csv in <dest>/raw/
+python -m brain_pipe.hcp_ya_restricted
+
+# Explicit raw_dir
+python -m brain_pipe.hcp_ya_restricted --raw-dir /path/to/restricted/csv/dir
+
+python -m brain_pipe.hcp_ya_restricted --help   # full option reference
+```
+
+### Python API
+
 ```python
 from brain_pipe.hcp_ya_restricted import process, get_df_image, get_df_xfeat, LABELS
 

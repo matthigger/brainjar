@@ -11,6 +11,24 @@ intersection brain mask.
 
 ## Use
 
+### CLI
+
+```bash
+# Interactive: prompts to download from Zenodo (default) or run locally
+python -m brain_pipe.hcp_ya_open
+
+# Force Zenodo download (DUA prompt still follows)
+python -m brain_pipe.hcp_ya_open --download
+
+# Run pipeline locally on raw HCP data
+python -m brain_pipe.hcp_ya_open --no-download \
+    --raw-dir /path/to/hcp/raw --n-jobs 8
+
+python -m brain_pipe.hcp_ya_open --help   # full option reference
+```
+
+### Python API
+
 ```python
 from brain_pipe.hcp_ya_open import process, get_df_image, get_df_xfeat, LABELS
 
