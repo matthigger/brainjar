@@ -51,7 +51,7 @@ Override per-call (`process(dest=...)`) or globally
 OASIS-3 ships ~1,400 subjects across 2,842 MR sessions and 2,157 PET
 sessions; AV1451 (tau) is a separate sub-project (`OASIS3_AV1451`) with
 449 baseline tau sessions. Downloading the whole release is ~3–7 TB.
-This pipeline restricts to a **biologically time-matched A/T/N subset**:
+This pipeline restricts to a **time-matched A/T/N subset**:
 
 1. AV45 amyloid PUP exists.
 2. AV1451 baseline tau PUP exists (`OASIS3_AV1451` only;
@@ -65,7 +65,7 @@ a tight mode within ~1 year (clustered visits) and a wide mode 2–4
 years out (late AV1451 follow-ups). 60 days excludes the late mode.
 
 **Result: 67 subjects.** Every subject's amyloid, tau, and diffusion
-measurements represent the same biological state within ~2 months.
+scans are within ~2 months of each other.
 
 Filter logic: `pipeline/cohort.py`. The cohort CSV is regenerated from
 the OASIS-3 metadata bundle each `prepare()` run, not committed.
@@ -77,7 +77,7 @@ subjects with PUP) amyloid scans. Voxelwise SUVR is comparable across
 subjects only **within tracer** — PIB and AV45 have different binding
 affinities and dynamic ranges; centiloid harmonizes them globally but
 not at the voxel level. Picking a single tracer eliminates this. AV45
-wins on two counts:
+was chosen for two reasons:
 
 1. **Era-matched with AV1451**: both ¹⁸F, both came online ~2014–2015
    at WashU. AV45 subjects are far more likely to *also* have a
@@ -108,8 +108,8 @@ template instead — a single-modality healthy-young setting where no
 atlas dependency applies.)
 
 PUP (PET Unified Pipeline; Su et al., NeuroImage 2013) is the WashU
-pipeline used in every OASIS-3 paper — its 3D SUVR outputs are
-peer-reviewed off-the-shelf. FA/MD are computed locally from raw DWI
+pipeline used in every OASIS-3 paper — we use its 3D SUVR outputs as
+the per-subject PET inputs. FA/MD are computed locally from raw DWI
 via the same DIPY tensor fit used in `brain_pipe.hcp_ya_open`.
 
 ## Tabular features (`get_df_xfeat`)
