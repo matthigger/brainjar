@@ -1,4 +1,4 @@
-"""Fast tests for brain_pipe._dwi_pipeline.reg helpers.
+"""Fast tests for brainjar._dwi_pipeline.reg helpers.
 
 Covers the cheap, dep-light helpers: ``collect_subject_files`` regex
 grouping and ``build_template`` averaging. The SyN registration loop
@@ -15,7 +15,7 @@ pytest.importorskip("ants")
 
 import numpy as np  # noqa: E402
 
-from brain_pipe._dwi_pipeline.reg import collect_subject_files  # noqa: E402
+from brainjar._dwi_pipeline.reg import collect_subject_files  # noqa: E402
 
 
 def test_collect_subject_files_groups_by_subject_regex(tmp_path):
@@ -58,7 +58,7 @@ def test_collect_subject_files_ignores_nonmatching_modalities(tmp_path):
 def test_build_template_averages_input_arrays(tmp_path):
     import ants
 
-    from brain_pipe._dwi_pipeline.reg import build_template
+    from brainjar._dwi_pipeline.reg import build_template
 
     paths = []
     for i, val in enumerate((1.0, 3.0, 5.0)):

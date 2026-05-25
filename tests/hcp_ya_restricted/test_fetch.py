@@ -1,4 +1,4 @@
-"""Fast tests for brain_pipe.hcp_ya_restricted.fetch.
+"""Fast tests for brainjar.hcp_ya_restricted.fetch.
 
 Exercises the filter/rename logic in ``process()`` against a synthetic
 ``hcp_ya_open`` cache + ``RESTRICTED_*.csv`` in ``tmp_path``. Does not
@@ -9,7 +9,7 @@ touch the real HCP DUA prompt — restricted DUA is bypassed via the
 import pandas as pd
 import pytest
 
-from brain_pipe.hcp_ya_restricted.fetch import _resolve_dest, process
+from brainjar.hcp_ya_restricted.fetch import _resolve_dest, process
 
 
 def _make_open_cache(dest, subjects):
@@ -29,7 +29,7 @@ def test_download_true_raises(tmp_path):
 
 
 def test_resolve_dest_uses_env_var(tmp_path, monkeypatch):
-    monkeypatch.setenv("BRAIN_PIPE_HCP_YA_RESTRICTED_PATH", str(tmp_path))
+    monkeypatch.setenv("BRAINJAR_HCP_YA_RESTRICTED_PATH", str(tmp_path))
     assert _resolve_dest() == tmp_path
 
 
@@ -42,7 +42,7 @@ def test_process_filters_and_renames(tmp_path, monkeypatch):
     open_cache = tmp_path / "open"
     restricted_cache = tmp_path / "restricted"
     _make_open_cache(open_cache, ["100307", "100408", "101107"])
-    monkeypatch.setenv("BRAIN_PIPE_HCP_YA_OPEN_PATH", str(open_cache))
+    monkeypatch.setenv("BRAINJAR_HCP_YA_OPEN_PATH", str(open_cache))
 
     raw = restricted_cache / "raw"
     raw.mkdir(parents=True)
@@ -74,7 +74,7 @@ def test_process_picks_newest_restricted_csv(tmp_path, monkeypatch):
     open_cache = tmp_path / "open"
     restricted_cache = tmp_path / "restricted"
     _make_open_cache(open_cache, ["100307"])
-    monkeypatch.setenv("BRAIN_PIPE_HCP_YA_OPEN_PATH", str(open_cache))
+    monkeypatch.setenv("BRAINJAR_HCP_YA_OPEN_PATH", str(open_cache))
 
     raw = restricted_cache / "raw"
     raw.mkdir(parents=True)
@@ -98,7 +98,7 @@ def test_process_raises_when_no_restricted_csv(tmp_path, monkeypatch):
     open_cache = tmp_path / "open"
     restricted_cache = tmp_path / "restricted"
     _make_open_cache(open_cache, ["100307"])
-    monkeypatch.setenv("BRAIN_PIPE_HCP_YA_OPEN_PATH", str(open_cache))
+    monkeypatch.setenv("BRAINJAR_HCP_YA_OPEN_PATH", str(open_cache))
 
     raw = restricted_cache / "raw"
     raw.mkdir(parents=True)
@@ -113,7 +113,7 @@ def test_process_raises_on_empty_overlap(tmp_path, monkeypatch):
     open_cache = tmp_path / "open"
     restricted_cache = tmp_path / "restricted"
     _make_open_cache(open_cache, ["100307"])
-    monkeypatch.setenv("BRAIN_PIPE_HCP_YA_OPEN_PATH", str(open_cache))
+    monkeypatch.setenv("BRAINJAR_HCP_YA_OPEN_PATH", str(open_cache))
 
     raw = restricted_cache / "raw"
     raw.mkdir(parents=True)

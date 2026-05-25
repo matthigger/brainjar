@@ -1,4 +1,4 @@
-"""Fast tests for brain_pipe.hcp_ya_open.fetch — path resolution + DUA prompt.
+"""Fast tests for brainjar.hcp_ya_open.fetch — path resolution + DUA prompt.
 
 Pipeline execution (``_process_local`` / ``_download_zenodo``) is covered
 by the slow repro tests, not here.
@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from brain_pipe.hcp_ya_open import fetch
-from brain_pipe.hcp_ya_open.fetch import (
+from brainjar.hcp_ya_open import fetch
+from brainjar.hcp_ya_open.fetch import (
     _resolve_dest,
     process,
     prompt_dua,
@@ -18,20 +18,20 @@ from brain_pipe.hcp_ya_open.fetch import (
 
 
 def test_resolve_dest_explicit_wins(tmp_path, monkeypatch):
-    monkeypatch.setenv("BRAIN_PIPE_HCP_YA_OPEN_PATH", "/should/not/be/used")
+    monkeypatch.setenv("BRAINJAR_HCP_YA_OPEN_PATH", "/should/not/be/used")
     assert resolve_dest("hcp_ya_open", tmp_path) == tmp_path
 
 
 def test_resolve_dest_env_var(tmp_path, monkeypatch):
-    monkeypatch.setenv("BRAIN_PIPE_FOO_PATH", str(tmp_path))
+    monkeypatch.setenv("BRAINJAR_FOO_PATH", str(tmp_path))
     assert resolve_dest("foo") == tmp_path
 
 
 def test_resolve_dest_falls_back_to_user_data_dir(monkeypatch):
-    monkeypatch.delenv("BRAIN_PIPE_HCP_YA_OPEN_PATH", raising=False)
+    monkeypatch.delenv("BRAINJAR_HCP_YA_OPEN_PATH", raising=False)
     out = _resolve_dest()
     assert out.name == "hcp_ya_open"
-    assert "brain_pipe" in out.parts
+    assert "brainjar" in out.parts
 
 
 def test_process_short_circuits_on_sentinel(tmp_path):

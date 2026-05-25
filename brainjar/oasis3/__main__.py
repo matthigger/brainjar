@@ -2,13 +2,13 @@
 
 Cross-platform — runs on any OS with a Python interpreter::
 
-    python -m brain_pipe.oasis3 prepare
-    python -m brain_pipe.oasis3 fetch
-    python -m brain_pipe.oasis3 process
-    python -m brain_pipe.oasis3 all
+    python -m brainjar.oasis3 prepare
+    python -m brainjar.oasis3 fetch
+    python -m brainjar.oasis3 process
+    python -m brainjar.oasis3 all
 
 Use ``--dest PATH`` on any subcommand to override the default cache
-location (``platformdirs.user_data_dir('brain_pipe')/oasis3``). Pass
+location (``platformdirs.user_data_dir('brainjar')/oasis3``). Pass
 ``--bundle PATH`` to ``prepare`` / ``all`` to skip the bundle download
 (for offline use). ``all`` prompts for the NITRC-IR password once and
 reuses it across ``prepare`` and ``fetch``.
@@ -17,12 +17,12 @@ reuses it across ``prepare`` and ``fetch``.
 import argparse
 import getpass
 
-from brain_pipe.oasis3 import fetch, prepare, process
+from brainjar.oasis3 import fetch, prepare, process
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        prog="python -m brain_pipe.oasis3",
+        prog="python -m brainjar.oasis3",
         description=(
             "Build the OASIS-3 CDR-prediction cohort derivative. "
             "Inclusion: subject has a tensor-fittable DWI + a complete "

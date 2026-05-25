@@ -1,11 +1,11 @@
-# brain_pipe
+# brainjar
 
 Reproducible processing pipelines and uniform loaders for brain imaging
 datasets.
 
 ## Data access
 
-`brain_pipe` ships code, not data. For most datasets you must obtain
+`brainjar` ships code, not data. For most datasets you must obtain
 the raw data yourself under the dataset's own Data Use Agreement;
 redistribution is not permitted and `process()` cannot download
 anything — you point at your own copy:
@@ -22,7 +22,7 @@ and `process(download=True)` will fetch it from Zenodo:
 ## Install
 
 ```bash
-pip install brain_pipe
+pip install brainjar
 ```
 
 That gives you every dataset *loader*. To re-run a pipeline, install
@@ -30,7 +30,7 @@ its extra into a dedicated venv:
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install "brain_pipe[hcp_ya_open-pipeline]"
+pip install "brainjar[hcp_ya_open-pipeline]"
 ```
 
 Pipeline extras install the exact pins recorded in each dataset's
@@ -40,7 +40,7 @@ one at a time.
 ## Use
 
 ```python
-from brain_pipe.hcp_ya_open import process, get_df_image, get_df_xfeat, LABELS
+from brainjar.hcp_ya_open import process, get_df_image, get_df_xfeat, LABELS
 
 process()                      # ensures the processed derivative exists
                                # (prompts: download the deposited derivative
@@ -65,16 +65,16 @@ Every dataset module exposes the same names: `process`, `get_df_image`,
 Access procedure, DUA, provenance, and pipeline extra for each are in
 the subpackage README:
 
-- [`brain_pipe.hcp_ya_open`](brain_pipe/hcp_ya_open/README.md)
-- [`brain_pipe.oasis3`](brain_pipe/oasis3/README.md)
-- [`brain_pipe.camcan`](brain_pipe/camcan/README.md)
-- [`brain_pipe.hcp_ya_restricted`](brain_pipe/hcp_ya_restricted/README.md)
-- [`brain_pipe.hcp_aging`](brain_pipe/hcp_aging/README.md)
-- [`brain_pipe.hcp_development`](brain_pipe/hcp_development/README.md)
+- [`brainjar.hcp_ya_open`](brainjar/hcp_ya_open/README.md)
+- [`brainjar.oasis3`](brainjar/oasis3/README.md)
+- [`brainjar.camcan`](brainjar/camcan/README.md)
+- [`brainjar.hcp_ya_restricted`](brainjar/hcp_ya_restricted/README.md)
+- [`brainjar.hcp_aging`](brainjar/hcp_aging/README.md)
+- [`brainjar.hcp_development`](brainjar/hcp_development/README.md)
 
 ## Cache
 
-Default: `platformdirs.user_data_dir('brain_pipe') / <dataset>`.
+Default: `platformdirs.user_data_dir('brainjar') / <dataset>`.
 Override per call (`process(dest=...)`) or globally
-(`BRAIN_PIPE_<DATASET>_PATH`). A `.complete` sentinel marks a finished
+(`BRAINJAR_<DATASET>_PATH`). A `.complete` sentinel marks a finished
 run.

@@ -1,12 +1,12 @@
 """Plot-ready labels for HCP-YA Restricted columns.
 
 Inherits imaging labels (``fa``, ``md``, ``mask``, ...) from
-``brain_pipe.hcp_ya_open`` and adds entries for the restricted-access
+``brainjar.hcp_ya_open`` and adds entries for the restricted-access
 covariate columns. The restricted CSV is exposed verbatim by
 ``get_df_xfeat``; only columns that get plotted need a label here.
 """
 
-from brain_pipe.hcp_ya_open import LABELS as _OPEN_LABELS
+from brainjar.hcp_ya_open import LABELS as _OPEN_LABELS
 
 LABELS = {
     **_OPEN_LABELS,

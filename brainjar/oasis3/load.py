@@ -4,8 +4,8 @@ import re
 
 import pandas as pd
 
-from brain_pipe.hcp_ya_open.fetch import resolve_dest
-from brain_pipe.oasis3.labels import LABELS
+from brainjar.hcp_ya_open.fetch import resolve_dest
+from brainjar.oasis3.labels import LABELS
 
 _SBJ_RE = re.compile(r"^(OAS\d+)_(t1|fa|md)\.nii\.gz$")
 
@@ -18,7 +18,7 @@ def _check_ready(dest):
     if not (dest / ".complete").exists():
         raise FileNotFoundError(
             f"No processed OASIS-3 data at {dest}. Run "
-            f"`brain_pipe.oasis3.process(raw_dir=...)` first."
+            f"`brainjar.oasis3.process(raw_dir=...)` first."
         )
 
 
@@ -65,7 +65,7 @@ def get_df_xfeat(dest=None):
     if not csv.exists():
         raise FileNotFoundError(
             f"covariates.csv not found at {csv}. Re-run "
-            f"brain_pipe.oasis3.process(raw_dir=...)."
+            f"brainjar.oasis3.process(raw_dir=...)."
         )
     df = pd.read_csv(csv, dtype={"subject_id": str}).set_index("subject_id")
     df.sort_index(inplace=True)

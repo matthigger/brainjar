@@ -1,11 +1,11 @@
-"""Fast tests for brain_pipe._dwi_pipeline.zip_check."""
+"""Fast tests for brainjar._dwi_pipeline.zip_check."""
 
 import hashlib
 import zipfile
 
 import pytest
 
-from brain_pipe._dwi_pipeline.zip_check import check_and_unzip, md5sum
+from brainjar._dwi_pipeline.zip_check import check_and_unzip, md5sum
 
 
 def _make_zip(folder, name, payload):

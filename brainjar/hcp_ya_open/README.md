@@ -1,4 +1,4 @@
-# brain_pipe.hcp_ya_open
+# brainjar.hcp_ya_open
 
 100 unrelated subjects from the **Human Connectome Project – Young Adult,
 Open Access** release. Per-subject FA and MD volumes from a DIPY tensor
@@ -15,22 +15,22 @@ intersection brain mask.
 
 ```bash
 # Interactive: prompts to download from Zenodo (default) or run locally
-python -m brain_pipe.hcp_ya_open
+python -m brainjar.hcp_ya_open
 
 # Force Zenodo download (DUA prompt still follows)
-python -m brain_pipe.hcp_ya_open --download
+python -m brainjar.hcp_ya_open --download
 
 # Run pipeline locally on raw HCP data
-python -m brain_pipe.hcp_ya_open --no-download \
+python -m brainjar.hcp_ya_open --no-download \
     --raw-dir /path/to/hcp/raw --n-jobs 8
 
-python -m brain_pipe.hcp_ya_open --help   # full option reference
+python -m brainjar.hcp_ya_open --help   # full option reference
 ```
 
 ### Python API
 
 ```python
-from brain_pipe.hcp_ya_open import process, get_df_image, get_df_xfeat, LABELS
+from brainjar.hcp_ya_open import process, get_df_image, get_df_xfeat, LABELS
 
 process()                              # interactive: download from Zenodo
                                        # (default), or run pipeline locally
@@ -51,9 +51,9 @@ process(download=False)                             # always pipeline,
 process(download=False, raw_dir='/path/to/hcp/raw') # explicit raw_dir
 ```
 
-Cache: `platformdirs.user_data_dir('brain_pipe') / hcp_ya_open/` by
+Cache: `platformdirs.user_data_dir('brainjar') / hcp_ya_open/` by
 default. Override per-call (`process(dest=...)`) or globally
-(`BRAIN_PIPE_HCP_YA_OPEN_PATH`). A `.complete` sentinel inside the
+(`BRAINJAR_HCP_YA_OPEN_PATH`). A `.complete` sentinel inside the
 cache marks a finished run.
 
 ## Reproducing the pipeline locally
@@ -63,7 +63,7 @@ Access agreement. The expected layout is the standard HCP per-subject
 tree containing `data.nii.gz`, `bvals`, `bvecs`, and `nodif_brain_mask.nii.gz`.
 
 By default the pipeline looks for raw data at `<dest>/raw/` (i.e.
-`~/.local/share/brain_pipe/hcp_ya_open/raw/` unless overridden). Place
+`~/.local/share/brainjar/hcp_ya_open/raw/` unless overridden). Place
 the subject folders and the `HCP_YA_subjects_*.csv` export there, or
 pass `raw_dir=...` explicitly.
 
@@ -71,31 +71,31 @@ Install the pipeline extra into a fresh venv:
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install "brain_pipe[hcp_ya_open-pipeline]"
+pip install "brainjar[hcp_ya_open-pipeline]"
 ```
 
 Then:
 
 ```python
-from brain_pipe.hcp_ya_open import process
+from brainjar.hcp_ya_open import process
 process(download=False)                              # use default raw_dir
 process(download=False, raw_dir="/path/to/hcp/raw")  # or be explicit
 ```
 
 That runs four stages:
 
-1. **`brain_pipe/_dwi_pipeline/zip_check.py`** — md5-verify and extract
+1. **`brainjar/_dwi_pipeline/zip_check.py`** — md5-verify and extract
    any HCP zip archives. By default `delete=False` (zips kept on disk
    after extraction); pass `delete=True` to reclaim space.
-2. **`brain_pipe/_dwi_pipeline/dti.py`** — DIPY `TensorModel` per
+2. **`brainjar/_dwi_pipeline/dti.py`** — DIPY `TensorModel` per
    subject; saves `fa.nii.gz` and `md.nii.gz` alongside each subject's
    `data.nii.gz`.
-3. **`brain_pipe/_dwi_pipeline/reg.py`** — average-FA template,
+3. **`brainjar/_dwi_pipeline/reg.py`** — average-FA template,
    SyN-register each subject to it (CC metric, 4-level pyramid,
    `random_seed=1`), warp MD with the same transform, warp each
    subject's brain mask, intersect for a group mask, multiply warped
    FA/MD by the group mask.
-4. **`brain_pipe/hcp_ya_open/pipeline/covariates.py`** — read the
+4. **`brainjar/hcp_ya_open/pipeline/covariates.py`** — read the
    ConnectomeDB Subjects CSV from `raw_dir` and emit `covariates.csv`
    restricted to subjects that completed stage 3.
 
@@ -164,9 +164,9 @@ testing whatever's already in the default cache), clear the deposit
 files first:
 
 ```bash
-cd ~/.local/share/brain_pipe/hcp_ya_open
+cd ~/.local/share/brainjar/hcp_ya_open
 rm -f *.nii.gz covariates.csv .complete    # preserves raw/ subdir
 pytest tests/test_repro_hcp_ya_open.py::test_zenodo_download_md5_matches_reference
 ```
 
-…or override the cache path with `BRAIN_PIPE_HCP_YA_OPEN_PATH=/tmp/hcp_test`.
+…or override the cache path with `BRAINJAR_HCP_YA_OPEN_PATH=/tmp/hcp_test`.

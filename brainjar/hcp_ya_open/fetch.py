@@ -15,21 +15,21 @@ from platformdirs import user_data_dir
 _PKG_DIR = Path(__file__).resolve().parent
 _MANIFEST = _PKG_DIR / "manifest.yaml"
 
-DEFAULT_CACHE = Path(user_data_dir("brain_pipe")) / "hcp_ya_open"
-_PATH_ENV = "BRAIN_PIPE_HCP_YA_OPEN_PATH"
+DEFAULT_CACHE = Path(user_data_dir("brainjar")) / "hcp_ya_open"
+_PATH_ENV = "BRAINJAR_HCP_YA_OPEN_PATH"
 
 
 def resolve_dest(name, dest=None):
     """Resolve the cache directory for a dataset's processed derivative.
 
-    Shared helper for any ``brain_pipe.<name>`` subpackage:
-    explicit ``dest`` wins; else ``BRAIN_PIPE_<NAME>_PATH`` env var;
-    else ``platformdirs.user_data_dir('brain_pipe') / name``.
+    Shared helper for any ``brainjar.<name>`` subpackage:
+    explicit ``dest`` wins; else ``BRAINJAR_<NAME>_PATH`` env var;
+    else ``platformdirs.user_data_dir('brainjar') / name``.
     """
     if dest is not None:
         return Path(dest)
-    env = os.environ.get(f"BRAIN_PIPE_{name.upper()}_PATH")
-    return Path(env) if env else Path(user_data_dir("brain_pipe")) / name
+    env = os.environ.get(f"BRAINJAR_{name.upper()}_PATH")
+    return Path(env) if env else Path(user_data_dir("brainjar")) / name
 
 
 def _resolve_dest(dest=None):
@@ -47,8 +47,8 @@ def process(download=None, raw_dir=None, dest=None, n_jobs=1, n_jobs_dti=None):
         raw_dir: when running the pipeline locally, where the raw HCP
             data lives. Defaults to ``<dest>/raw/``.
         dest: cache location for the processed output. Defaults to
-            ``$BRAIN_PIPE_HCP_YA_OPEN_PATH`` if set, else
-            ``platformdirs.user_data_dir('brain_pipe')/hcp_ya_open``.
+            ``$BRAINJAR_HCP_YA_OPEN_PATH`` if set, else
+            ``platformdirs.user_data_dir('brainjar')/hcp_ya_open``.
         n_jobs: parallel workers for SyN registration (stage 3). Each
             worker pins ITK to 1 thread to avoid over-subscription.
         n_jobs_dti: parallel workers for DTI fitting (stage 2). DTI
@@ -106,7 +106,7 @@ def _prompt_download(manifest):
 def prompt_dua(dua, header, body, marker=None):
     """Confirm a Data Use Agreement interactively.
 
-    Shared helper for any ``brain_pipe.<name>`` subpackage. Prints the
+    Shared helper for any ``brainjar.<name>`` subpackage. Prints the
     DUA banner + URL and refuses to proceed unless the user types the
     exact phrase in ``dua["prompt"]``. If ``marker`` (a ``Path``) is
     given, the prompt is skipped when it already exists and the file
@@ -217,20 +217,20 @@ def _process_local(raw_dir, dest, n_jobs=1, n_jobs_dti=None):
     os.environ["ANTS_RANDOM_SEED"] = "1"
 
     # imported lazily so a loader-only install can still `from
-    # brain_pipe.hcp_ya_open import process` without dipy / antspyx
+    # brainjar.hcp_ya_open import process` without dipy / antspyx
     try:
         from dipy.reconst.dti import fractional_anisotropy, mean_diffusivity
     except ImportError as e:
         raise ImportError(
             "Reprocessing requires the pipeline extra; install with:\n"
-            "    pip install 'brain_pipe[hcp_ya_open-pipeline]'\n"
+            "    pip install 'brainjar[hcp_ya_open-pipeline]'\n"
             "into a fresh venv."
         ) from e
 
     from joblib import Parallel, delayed
 
-    from brain_pipe._dwi_pipeline import dti, reg, zip_check
-    from brain_pipe.hcp_ya_open.pipeline import covariates
+    from brainjar._dwi_pipeline import dti, reg, zip_check
+    from brainjar.hcp_ya_open.pipeline import covariates
 
     dest.mkdir(parents=True, exist_ok=True)
 

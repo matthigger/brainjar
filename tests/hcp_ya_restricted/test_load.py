@@ -1,4 +1,4 @@
-"""Fast loader tests for brain_pipe.hcp_ya_restricted.
+"""Fast loader tests for brainjar.hcp_ya_restricted.
 
 Build synthetic open + restricted caches in ``tmp_path`` and verify the
 filter/reindex logic without any real HCP data.
@@ -7,7 +7,7 @@ filter/reindex logic without any real HCP data.
 import pandas as pd
 import pytest
 
-from brain_pipe.hcp_ya_restricted.load import get_df_image, get_df_xfeat
+from brainjar.hcp_ya_restricted.load import get_df_image, get_df_xfeat
 
 
 def _make_open_cache(dest, subjects):
@@ -39,7 +39,7 @@ def test_get_df_image_restricts_to_restricted_subjects(tmp_path, monkeypatch):
     _make_open_cache(open_cache, ["100307", "100408", "101107", "101309"])
     _make_restricted_cache(restricted_cache, ["100307", "101107"])
 
-    monkeypatch.setenv("BRAIN_PIPE_HCP_YA_OPEN_PATH", str(open_cache))
+    monkeypatch.setenv("BRAINJAR_HCP_YA_OPEN_PATH", str(open_cache))
 
     df = get_df_image(dest=restricted_cache)
 
@@ -52,7 +52,7 @@ def test_get_df_image_raises_without_sentinel(tmp_path, monkeypatch):
     restricted_cache = tmp_path / "restricted"
     _make_open_cache(open_cache, ["100307"])
     restricted_cache.mkdir()
-    monkeypatch.setenv("BRAIN_PIPE_HCP_YA_OPEN_PATH", str(open_cache))
+    monkeypatch.setenv("BRAINJAR_HCP_YA_OPEN_PATH", str(open_cache))
 
     with pytest.raises(FileNotFoundError, match="No processed HCP-YA Restricted"):
         get_df_image(dest=restricted_cache)

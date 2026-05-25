@@ -3,7 +3,7 @@ requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "brain_pipe"
+name = "brainjar"
 version = "0.1.0"
 description = "Reproducible processing pipelines and uniform loaders for brain imaging datasets."
 readme = "README.md"
@@ -28,7 +28,7 @@ dependencies = [
 oasis3-pipeline = [
     # Pinned to the resolved versions from the 67-subject reference
     # run on 2026-05-20 (Python 3.12.3, n_jobs=8). Full transitive
-    # lock at brain_pipe/oasis3/pipeline/requirements.lock.
+    # lock at brainjar/oasis3/pipeline/requirements.lock.
     "dipy==1.9.0",
     "antspyx==0.5.4",
     "nibabel==5.4.2",
@@ -45,7 +45,7 @@ hcp_ya_open-pipeline = [
     # Pinned to the exact versions used by the bit-deterministic
     # reference run on 2026-05-18 (Python 3.12.3, seed=1). For full
     # transitive-dep reproducibility, install from
-    # brain_pipe/hcp_ya_open/pipeline/requirements.lock instead.
+    # brainjar/hcp_ya_open/pipeline/requirements.lock instead.
     "dipy==1.9.0",
     "antspyx==0.5.4",
     "nibabel==5.3.2",
@@ -59,12 +59,12 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["brain_pipe*"]
+include = ["brainjar*"]
 
 [tool.setuptools.package-data]
-"brain_pipe.hcp_ya_open" = ["manifest.yaml", "pipeline/requirements.lock"]
-"brain_pipe.hcp_ya_restricted" = ["manifest.yaml"]
-"brain_pipe.oasis3" = [
+"brainjar.hcp_ya_open" = ["manifest.yaml", "pipeline/requirements.lock"]
+"brainjar.hcp_ya_restricted" = ["manifest.yaml"]
+"brainjar.oasis3" = [
     "README.md",
     "manifest.yaml",
     "pipeline/requirements.lock",
@@ -74,6 +74,6 @@ include = ["brain_pipe*"]
 testpaths = ["tests"]
 # importlib mode lets multiple test files share the same basename across
 # subdirs (e.g. tests/hcp_ya_open/test_load.py + tests/hcp_ya_restricted/test_load.py).
-# pythonpath makes brain_pipe importable without an editable install.
+# pythonpath makes brainjar importable without an editable install.
 addopts = "--import-mode=importlib"
 pythonpath = ["."]

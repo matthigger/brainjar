@@ -1,4 +1,4 @@
-"""Pytest config for brain_pipe tests.
+"""Pytest config for brainjar tests.
 
 Auto-discovery (`pytest` with no args) runs only fast tests. Slow tests
 that re-run the dataset pipeline must be invoked by explicit path:

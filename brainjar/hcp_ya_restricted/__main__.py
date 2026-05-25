@@ -2,10 +2,10 @@
 
 Cross-platform — runs on any OS with a Python interpreter::
 
-    python -m brain_pipe.hcp_ya_restricted --raw-dir /path/to/restricted/csv/dir
+    python -m brainjar.hcp_ya_restricted --raw-dir /path/to/restricted/csv/dir
 
 Use ``--dest PATH`` to override the default cache location
-(``platformdirs.user_data_dir('brain_pipe')/hcp_ya_restricted``).
+(``platformdirs.user_data_dir('brainjar')/hcp_ya_restricted``).
 
 There is no Zenodo path: the Restricted-access export (exact age,
 family structure, handedness, drug screens, ...) is governed by the
@@ -16,12 +16,12 @@ the package README for how to obtain it.
 
 import argparse
 
-from brain_pipe.hcp_ya_restricted import process
+from brainjar.hcp_ya_restricted import process
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        prog="python -m brain_pipe.hcp_ya_restricted",
+        prog="python -m brainjar.hcp_ya_restricted",
         description=(
             "Build the HCP-YA Restricted processed derivative: filters "
             "the hcp_ya_open imaging subjects to those covered by the "

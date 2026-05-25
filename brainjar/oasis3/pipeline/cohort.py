@@ -209,7 +209,7 @@ def build(bundle_paths, dest, cohort_window_days=COHORT_WINDOW_DAYS):
     """Build cohort_sessions.csv + covariates.csv from extracted bundle CSVs.
 
     Args:
-        bundle_paths: dict from :func:`brain_pipe.oasis3.pipeline.bundle.extract`
+        bundle_paths: dict from :func:`brainjar.oasis3.pipeline.bundle.extract`
             mapping logical names ('mr_json', 'udsb4', 'demographics',
             ...) to ``Path``.
         dest: directory where cohort_sessions.csv + covariates.csv land.

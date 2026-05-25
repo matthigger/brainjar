@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from brain_pipe.hcp_ya_open.fetch import _resolve_dest
-from brain_pipe.hcp_ya_open.labels import LABELS
+from brainjar.hcp_ya_open.fetch import _resolve_dest
+from brainjar.hcp_ya_open.labels import LABELS
 
 _SBJ_RE = re.compile(r"^(\d{6})_(fa|md)\.nii\.gz$")
 
@@ -15,7 +15,7 @@ def _check_ready(dest):
     if not (dest / ".complete").exists():
         raise FileNotFoundError(
             f"No processed HCP-YA Open data at {dest}. Run "
-            f"`brain_pipe.hcp_ya_open.process()` first."
+            f"`brainjar.hcp_ya_open.process()` first."
         )
 
 

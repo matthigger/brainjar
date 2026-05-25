@@ -8,8 +8,8 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-from brain_pipe import hcp_ya_open
-from brain_pipe.hcp_ya_open.fetch import prompt_dua, resolve_dest
+from brainjar import hcp_ya_open
+from brainjar.hcp_ya_open.fetch import prompt_dua, resolve_dest
 
 _PKG_DIR = Path(__file__).resolve().parent
 _MANIFEST = _PKG_DIR / "manifest.yaml"
@@ -29,8 +29,8 @@ def process(download=None, raw_dir=None, dest=None):
         raw_dir: directory holding the ``RESTRICTED_*.csv`` export from
             ConnectomeDB. Defaults to ``<dest>/raw/``.
         dest: cache location for the processed output. Defaults to
-            ``$BRAIN_PIPE_HCP_YA_RESTRICTED_PATH`` if set, else
-            ``platformdirs.user_data_dir('brain_pipe')/hcp_ya_restricted``.
+            ``$BRAINJAR_HCP_YA_RESTRICTED_PATH`` if set, else
+            ``platformdirs.user_data_dir('brainjar')/hcp_ya_restricted``.
 
     Returns:
         ``pathlib.Path`` to a directory containing ``covariates_restricted.csv``.

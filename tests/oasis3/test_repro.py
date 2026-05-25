@@ -1,4 +1,4 @@
-"""Bit-equality regression tests for ``brain_pipe.oasis3``.
+"""Bit-equality regression tests for ``brainjar.oasis3``.
 
 This file is excluded from default pytest discovery (see
 ``tests/conftest.py``). Invoke explicitly::
@@ -9,9 +9,9 @@ This file is excluded from default pytest discovery (see
 
 Requirements:
 - Raw OASIS-3 data + cohort/covariates CSVs at the default cache
-  ``~/.local/share/brain_pipe/oasis3/`` (re-used so the raw isn't
+  ``~/.local/share/brainjar/oasis3/`` (re-used so the raw isn't
   re-staged).
-- Pipeline extra installed: ``pip install brain_pipe[oasis3-pipeline]``.
+- Pipeline extra installed: ``pip install brainjar[oasis3-pipeline]``.
 - Approx wall time: ~30 s DTI, ~2 h full process (n_jobs=8 on a
   32-core box).
 
@@ -62,13 +62,13 @@ def _read_reference():
 
 
 def _default_dest():
-    from brain_pipe.oasis3.fetch import _resolve_dest
+    from brainjar.oasis3.fetch import _resolve_dest
     return _resolve_dest()
 
 
 def _pick_subject_with_dti(raw_dir):
     """Smallest subject id whose first dwi run has data + cached fa/md."""
-    from brain_pipe.oasis3.pipeline.dti import _find_subject_dwi
+    from brainjar.oasis3.pipeline.dti import _find_subject_dwi
 
     scans_dir = raw_dir / "scans"
     if not scans_dir.exists():
@@ -113,7 +113,7 @@ def test_dti_single_subject_deterministic(tmp_path):
     os.symlink(bval, tmp_path / "bvals")
     os.symlink(bvec, tmp_path / "bvecs")
 
-    from brain_pipe._dwi_pipeline.dti import process_dti
+    from brainjar._dwi_pipeline.dti import process_dti
     from dipy.reconst.dti import fractional_anisotropy, mean_diffusivity
 
     process_dti(
@@ -142,7 +142,7 @@ def test_process_bit_identical_to_reference(tmp_path):
     pytest.importorskip("dipy")
     pytest.importorskip("ants")
     pytest.importorskip("templateflow")
-    from brain_pipe.oasis3 import process
+    from brainjar.oasis3 import process
 
     cached_dest = _default_dest()
     raw = cached_dest / "raw"

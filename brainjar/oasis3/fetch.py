@@ -1,6 +1,6 @@
 """Build the OASIS-3 processed derivative under the local cache.
 
-Unlike ``brain_pipe.hcp_ya_open``, there is no Zenodo download path —
+Unlike ``brainjar.hcp_ya_open``, there is no Zenodo download path —
 OASIS-3 raw and derived data is restricted by the OASIS DUA and cannot
 be redistributed. ``process(raw_dir=...)`` requires the caller to point
 at their own NITRC-IR-authenticated copy (the bundled `0AS_data_files`
@@ -13,7 +13,7 @@ from pathlib import Path
 
 import yaml
 
-from brain_pipe.hcp_ya_open.fetch import resolve_dest
+from brainjar.hcp_ya_open.fetch import resolve_dest
 
 _PKG_DIR = Path(__file__).resolve().parent
 _MANIFEST = _PKG_DIR / "manifest.yaml"
@@ -49,8 +49,8 @@ def prepare(bundle=None, dest=None, nitrc_user=None, nitrc_password=None):
         bundle: optional path to a pre-downloaded
             ``OASIS3_data_files.zip``. If omitted, the bundle is fetched
             from NITRC-IR (prompts for credentials).
-        dest: cache location; defaults to ``$BRAIN_PIPE_OASIS3_PATH`` or
-            ``platformdirs.user_data_dir('brain_pipe')/oasis3``.
+        dest: cache location; defaults to ``$BRAINJAR_OASIS3_PATH`` or
+            ``platformdirs.user_data_dir('brainjar')/oasis3``.
         nitrc_user: NITRC-IR username for the bundle download. Ignored
             when ``bundle`` is provided. Prompted if omitted.
         nitrc_password: NITRC-IR password for the bundle download.
@@ -62,8 +62,8 @@ def prepare(bundle=None, dest=None, nitrc_user=None, nitrc_password=None):
         ``Path`` to ``dest``. The two output CSVs live at
         ``dest/cohort_sessions.csv`` and ``dest/covariates.csv``.
     """
-    from brain_pipe.oasis3.pipeline import bundle as bundle_stage
-    from brain_pipe.oasis3.pipeline import cohort as cohort_stage
+    from brainjar.oasis3.pipeline import bundle as bundle_stage
+    from brainjar.oasis3.pipeline import cohort as cohort_stage
 
     dest = _resolve_dest(dest)
     dest.mkdir(parents=True, exist_ok=True)
@@ -93,7 +93,7 @@ def _fetch_bundle(raw_dir, nitrc_user, nitrc_password=None):
         print(f"bundle already downloaded at {out_path} — reusing")
         return out_path
 
-    from brain_pipe.oasis3.pipeline.xnat import NitrcXnat
+    from brainjar.oasis3.pipeline.xnat import NitrcXnat
 
     nitrc_user, nitrc_password = _prompt_creds(nitrc_user, nitrc_password)
 
@@ -139,7 +139,7 @@ def fetch(dest=None, nitrc_user=None, nitrc_password=None):
 
     Args:
         dest: cache location; defaults to
-            ``platformdirs.user_data_dir('brain_pipe')/oasis3``.
+            ``platformdirs.user_data_dir('brainjar')/oasis3``.
         nitrc_user: NITRC-IR username. Prompted if omitted.
         nitrc_password: NITRC-IR password. Prompted via getpass if
             omitted. Provided primarily so the CLI's ``all`` subcommand
@@ -161,8 +161,8 @@ def fetch(dest=None, nitrc_user=None, nitrc_password=None):
 
     nitrc_user, nitrc_password = _prompt_creds(nitrc_user, nitrc_password)
 
-    from brain_pipe.oasis3.pipeline import fetch_imaging
-    from brain_pipe.oasis3.pipeline.xnat import NitrcXnat
+    from brainjar.oasis3.pipeline import fetch_imaging
+    from brainjar.oasis3.pipeline.xnat import NitrcXnat
 
     print(f"[authenticating against NITRC-IR]")
     with NitrcXnat(nitrc_user, nitrc_password) as xnat:
@@ -185,8 +185,8 @@ def process(dest=None, n_jobs=1, n_jobs_dti=None):
     metadata bundle) and is not regenerated here.
 
     Args:
-        dest: cache location. Defaults to ``$BRAIN_PIPE_OASIS3_PATH``
-            if set, else ``platformdirs.user_data_dir('brain_pipe')/oasis3``.
+        dest: cache location. Defaults to ``$BRAINJAR_OASIS3_PATH``
+            if set, else ``platformdirs.user_data_dir('brainjar')/oasis3``.
         n_jobs: parallel workers for SyN registration.
         n_jobs_dti: parallel workers for DTI fitting; defaults to
             ``min(n_jobs, 4)`` since each holds the DWI volume in RAM.
@@ -221,18 +221,18 @@ def process(dest=None, n_jobs=1, n_jobs_dti=None):
     os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = "1"
 
     # Imports are lazy so a loader-only install can still do
-    # `from brain_pipe.oasis3 import process` without antspyx / dipy.
+    # `from brainjar.oasis3 import process` without antspyx / dipy.
     try:
         import dipy  # noqa: F401
         import ants  # noqa: F401
     except ImportError as e:
         raise ImportError(
             "Reprocessing requires the pipeline extra; install with:\n"
-            "    pip install 'brain_pipe[oasis3-pipeline]'\n"
+            "    pip install 'brainjar[oasis3-pipeline]'\n"
             "into a fresh venv."
         ) from e
 
-    from brain_pipe.oasis3.pipeline import dti, reg
+    from brainjar.oasis3.pipeline import dti, reg
 
     print(f"[1/2] DTI fitting (FA + MD) — n_jobs_dti={n_jobs_dti}")
     dti.process_cohort(cohort_csv, raw_dir, n_jobs=n_jobs_dti)

@@ -1,6 +1,6 @@
 """Stage 4: DIPY tensor fit (FA + MD) per cohort subject.
 
-Thin per-dataset adapter over :func:`brain_pipe._dwi_pipeline.dti.process_dti`
+Thin per-dataset adapter over :func:`brainjar._dwi_pipeline.dti.process_dti`
 that handles OASIS-3's XNAT-delivered layout::
 
     raw/scans/<MR_ID>/<MR_ID>/scans/dwi*-dwi/
@@ -92,7 +92,7 @@ def _check_dwi_acquisition(subject_id, dwi_mr_id, bval_path):
     noise without an error. Warns (UserWarning) if 6 <= n < 30 — workable
     but below the standard tensor-fit recommendation; FA/MD will be
     noisy. This is the post-fetch backstop for the
-    :data:`brain_pipe.oasis3.pipeline.cohort._DEGENERATE_DWI_SERIES`
+    :data:`brainjar.oasis3.pipeline.cohort._DEGENERATE_DWI_SERIES`
     pre-fetch filter: if a degenerate session sneaks past the bundle
     metadata (e.g. unfamiliar SeriesDescription), this still fails loud.
     """
@@ -133,7 +133,7 @@ def process_cohort(cohort_csv, raw_dir, n_jobs=1):
     # Lazy import — the shared module is in the pipeline extra.
     from dipy.reconst.dti import fractional_anisotropy, mean_diffusivity
 
-    from brain_pipe._dwi_pipeline.dti import process_dti
+    from brainjar._dwi_pipeline.dti import process_dti
 
     cohort_csv = Path(cohort_csv)
     raw_dir = Path(raw_dir)

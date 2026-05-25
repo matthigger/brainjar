@@ -3,7 +3,7 @@
 Defaults ``dest`` to the OASIS-3 cache and looks for
 ``mni_template.nii.gz`` alongside the cohort for the MI-to-template
 disambiguation. The shared algorithm lives in
-:mod:`brain_pipe._dwi_pipeline.qc_registration`.
+:mod:`brainjar._dwi_pipeline.qc_registration`.
 
 Usage::
 
@@ -17,7 +17,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from brain_pipe._dwi_pipeline.qc_registration import run
+from brainjar._dwi_pipeline.qc_registration import run
 
 
 def main(argv=None):
@@ -25,7 +25,7 @@ def main(argv=None):
     p.add_argument(
         "dest", nargs="?", default=None,
         help="directory of <sbj>_<mod>.nii.gz files. Defaults to "
-             "the brain_pipe.oasis3 default cache.",
+             "the brainjar.oasis3 default cache.",
     )
     p.add_argument(
         "--mask", default=None,
@@ -47,7 +47,7 @@ def main(argv=None):
     args = p.parse_args(argv)
 
     if args.dest is None:
-        from brain_pipe.oasis3.fetch import _resolve_dest
+        from brainjar.oasis3.fetch import _resolve_dest
         args.dest = _resolve_dest()
 
     # OASIS-3 default: register-to-MNI152, so mni_template.nii.gz is

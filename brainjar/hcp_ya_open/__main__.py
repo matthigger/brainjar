@@ -2,23 +2,23 @@
 
 Cross-platform — runs on any OS with a Python interpreter::
 
-    python -m brain_pipe.hcp_ya_open                    # interactive: prompts Zenodo Y/N
-    python -m brain_pipe.hcp_ya_open --download         # force Zenodo download (DUA prompt follows)
-    python -m brain_pipe.hcp_ya_open --no-download \\
+    python -m brainjar.hcp_ya_open                    # interactive: prompts Zenodo Y/N
+    python -m brainjar.hcp_ya_open --download         # force Zenodo download (DUA prompt follows)
+    python -m brainjar.hcp_ya_open --no-download \\
         --raw-dir /path/to/hcp/raw --n-jobs 8           # local pipeline on raw HCP data
 
 Use ``--dest PATH`` to override the default cache location
-(``platformdirs.user_data_dir('brain_pipe')/hcp_ya_open``).
+(``platformdirs.user_data_dir('brainjar')/hcp_ya_open``).
 """
 
 import argparse
 
-from brain_pipe.hcp_ya_open import process
+from brainjar.hcp_ya_open import process
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        prog="python -m brain_pipe.hcp_ya_open",
+        prog="python -m brainjar.hcp_ya_open",
         description=(
             "Build the HCP-YA Open processed derivative (100 unrelated "
             "young-adult subjects; FA + MD in a study-specific FA template). "

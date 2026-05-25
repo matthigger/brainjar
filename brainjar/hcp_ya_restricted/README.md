@@ -1,6 +1,6 @@
-# brain_pipe.hcp_ya_restricted
+# brainjar.hcp_ya_restricted
 
-Same FA/MD imaging as [`brain_pipe.hcp_ya_open`](../hcp_ya_open/README.md),
+Same FA/MD imaging as [`brainjar.hcp_ya_open`](../hcp_ya_open/README.md),
 layered with the **HCP-YA Restricted Access** covariates (exact age,
 family structure, handedness, drug screens, ...). The restricted
 covariate CSV is not redistributable, so this package has no Zenodo
@@ -17,18 +17,18 @@ builds the cache locally.
 
 ```bash
 # Default cache, look for RESTRICTED_*.csv in <dest>/raw/
-python -m brain_pipe.hcp_ya_restricted
+python -m brainjar.hcp_ya_restricted
 
 # Explicit raw_dir
-python -m brain_pipe.hcp_ya_restricted --raw-dir /path/to/restricted/csv/dir
+python -m brainjar.hcp_ya_restricted --raw-dir /path/to/restricted/csv/dir
 
-python -m brain_pipe.hcp_ya_restricted --help   # full option reference
+python -m brainjar.hcp_ya_restricted --help   # full option reference
 ```
 
 ### Python API
 
 ```python
-from brain_pipe.hcp_ya_restricted import process, get_df_image, get_df_xfeat, LABELS
+from brainjar.hcp_ya_restricted import process, get_df_image, get_df_xfeat, LABELS
 
 process()                              # ensures hcp_ya_open is processed
                                        # and filters the RESTRICTED CSV
@@ -71,9 +71,9 @@ The restricted columns require an upgraded ConnectomeDB account.
 
 ## Cache
 
-`platformdirs.user_data_dir('brain_pipe') / hcp_ya_restricted/` by
+`platformdirs.user_data_dir('brainjar') / hcp_ya_restricted/` by
 default. Override per-call (`process(dest=...)`) or globally
-(`BRAIN_PIPE_HCP_YA_RESTRICTED_PATH`). A `.complete` sentinel inside
+(`BRAINJAR_HCP_YA_RESTRICTED_PATH`). A `.complete` sentinel inside
 the cache marks a finished run; `.dua_agreed` marks consent.
 
 The cache only contains `covariates_restricted.csv` and the two
@@ -83,7 +83,7 @@ cache and are not duplicated.
 ## What process() does
 
 1. **Ensure hcp_ya_open is processed.** Calls
-   `brain_pipe.hcp_ya_open.process()`. If you haven't run it, this is
+   `brainjar.hcp_ya_open.process()`. If you haven't run it, this is
    interactive (download from Zenodo, or process raw HCP locally).
 2. **DUA confirmation.** Prompts for the Restricted DUA on first run;
    caches consent in `<dest>/.dua_agreed`.

@@ -1,4 +1,4 @@
-# brain_pipe.oasis3
+# brainjar.oasis3
 
 Aging / Alzheimer's cohort from the WashU OASIS-3 release. Three
 per-subject 3D image features — `t1`, `fa`, `md` — paired with a 7-dim
@@ -27,14 +27,14 @@ Either invoke from the shell (CLI) or from Python.
 ```bash
 # Run everything in one go — prompts for NITRC-IR password once and
 # reuses it across prepare + fetch. ~5 hr wall on a 32-core box.
-python -m brain_pipe.oasis3 all --user YOUR_NITRC_USERNAME --n-jobs 8
+python -m brainjar.oasis3 all --user YOUR_NITRC_USERNAME --n-jobs 8
 
 # Or run the stages separately (e.g., to background the long fetch):
-python -m brain_pipe.oasis3 prepare --user YOUR_NITRC_USERNAME    # ~10 s
-python -m brain_pipe.oasis3 fetch   --user YOUR_NITRC_USERNAME    # ~3 hr
-python -m brain_pipe.oasis3 process --n-jobs 8                    # ~2 hr
+python -m brainjar.oasis3 prepare --user YOUR_NITRC_USERNAME    # ~10 s
+python -m brainjar.oasis3 fetch   --user YOUR_NITRC_USERNAME    # ~3 hr
+python -m brainjar.oasis3 process --n-jobs 8                    # ~2 hr
 
-python -m brain_pipe.oasis3 --help                                # subcommand reference
+python -m brainjar.oasis3 --help                                # subcommand reference
 ```
 
 All subcommands accept `--dest PATH` to override the cache location.
@@ -46,7 +46,7 @@ download — useful for offline use). Password is always prompted via
 ### Python API
 
 ```python
-from brain_pipe.oasis3 import prepare, fetch, process, get_df_image, get_df_xfeat, LABELS
+from brainjar.oasis3 import prepare, fetch, process, get_df_image, get_df_xfeat, LABELS
 
 prepare()    # ~seconds. Downloads the ~67 MB metadata bundle from
              # NITRC-IR, builds cohort_sessions.csv + covariates.csv.
@@ -66,9 +66,9 @@ LABELS['cdr_sum']          # 'CDR Sum of Boxes'
 Pass `bundle='/path/to/OASIS3_data_files.zip'` to `prepare()` to skip
 the metadata download (offline / pre-downloaded use).
 
-Cache: `platformdirs.user_data_dir('brain_pipe') / oasis3` by default.
+Cache: `platformdirs.user_data_dir('brainjar') / oasis3` by default.
 Override per-call (`process(dest=...)`) or globally
-(`BRAIN_PIPE_OASIS3_PATH`).
+(`BRAINJAR_OASIS3_PATH`).
 
 ## Cohort
 
@@ -119,7 +119,7 @@ atlases (Braak, Desikan-Killiany) live there, ADNI ships in MNI, and a
 single T1→MNI nonlinear warp per subject serves all three modalities.
 
 FA/MD are computed locally from raw DWI via the same DIPY tensor fit
-used in `brain_pipe.hcp_ya_open`.
+used in `brainjar.hcp_ya_open`.
 
 ## Tabular features (`get_df_xfeat`)
 

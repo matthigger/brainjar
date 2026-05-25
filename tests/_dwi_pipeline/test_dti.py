@@ -1,4 +1,4 @@
-"""Fast wrapper test for brain_pipe._dwi_pipeline.dti.process_dti.
+"""Fast wrapper test for brainjar._dwi_pipeline.dti.process_dti.
 
 This checks the I/O contract — does the wrapper read DWI + bvals/bvecs,
 call dipy's tensor model, and write fa/md NIfTIs with the right shape
@@ -58,7 +58,7 @@ def test_process_dti_writes_fa_md_with_correct_shape_and_affine(tmp_path):
     import nibabel as nib
     from dipy.reconst.dti import fractional_anisotropy, mean_diffusivity
 
-    from brain_pipe._dwi_pipeline.dti import process_dti
+    from brainjar._dwi_pipeline.dti import process_dti
 
     _write_synthetic_dwi(tmp_path)
 
@@ -86,7 +86,7 @@ def test_process_dti_writes_fa_md_with_correct_shape_and_affine(tmp_path):
 def test_process_dti_skips_when_outputs_exist(tmp_path):
     from dipy.reconst.dti import fractional_anisotropy
 
-    from brain_pipe._dwi_pipeline.dti import process_dti
+    from brainjar._dwi_pipeline.dti import process_dti
 
     _write_synthetic_dwi(tmp_path)
     (tmp_path / "fa.nii.gz").write_bytes(b"prior")  # sentinel

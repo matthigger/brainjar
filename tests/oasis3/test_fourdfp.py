@@ -1,4 +1,4 @@
-"""Tests for ``brain_pipe.oasis3.pipeline.fourdfp``.
+"""Tests for ``brainjar.oasis3.pipeline.fourdfp``.
 
 Two layers of validation:
 
@@ -29,7 +29,7 @@ import pytest
 
 import nibabel as nib
 
-from brain_pipe.oasis3.pipeline.fourdfp import load, parse_ifh
+from brainjar.oasis3.pipeline.fourdfp import load, parse_ifh
 
 
 # ---- synthetic round-trip -----------------------------------------------
@@ -160,7 +160,7 @@ def _which_nifti_4dfp():
 def _real_pup_image():
     """Locate a real OASIS-3 PUP .4dfp.img if available locally. Returns
     ``None`` when test data isn't on disk."""
-    cache = Path.home() / ".local/share/brain_pipe/oasis3/raw/pup"
+    cache = Path.home() / ".local/share/brainjar/oasis3/raw/pup"
     if not cache.exists():
         return None
     hits = list(cache.glob("*/*_msum_SUVR.4dfp.img"))
@@ -183,7 +183,7 @@ def test_load_matches_washu_nifti_4dfp(tmp_path):
     if src is None:
         pytest.skip(
             "no PUP .4dfp.img on disk to compare against. Run "
-            "`brain_pipe.oasis3.fetch()` first, then re-run this test."
+            "`brainjar.oasis3.fetch()` first, then re-run this test."
         )
 
     # WashU reference conversion. ``nifti_4dfp -n in out_stem`` writes

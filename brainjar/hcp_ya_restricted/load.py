@@ -7,16 +7,16 @@ subject set to those present in the user-supplied RESTRICTED_*.csv.
 
 import pandas as pd
 
-from brain_pipe import hcp_ya_open
-from brain_pipe.hcp_ya_restricted.fetch import _resolve_dest
-from brain_pipe.hcp_ya_restricted.labels import LABELS
+from brainjar import hcp_ya_open
+from brainjar.hcp_ya_restricted.fetch import _resolve_dest
+from brainjar.hcp_ya_restricted.labels import LABELS
 
 
 def _check_ready(dest):
     if not (dest / ".complete").exists():
         raise FileNotFoundError(
             f"No processed HCP-YA Restricted data at {dest}. Run "
-            f"`brain_pipe.hcp_ya_restricted.process()` first."
+            f"`brainjar.hcp_ya_restricted.process()` first."
         )
 
 
@@ -64,7 +64,7 @@ def get_df_xfeat(dest=None):
     if not csv.exists():
         raise FileNotFoundError(
             f"covariates_restricted.csv not found at {csv}. Run "
-            f"`brain_pipe.hcp_ya_restricted.process()` first."
+            f"`brainjar.hcp_ya_restricted.process()` first."
         )
     df = pd.read_csv(csv, dtype={"subject_id": str}).set_index("subject_id")
     df.sort_index(inplace=True)

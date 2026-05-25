@@ -11,9 +11,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import sys
-import brain_pipe.oasis3  # ensures the submodule is loaded into sys.modules
-oasis3_fetch = sys.modules["brain_pipe.oasis3.fetch"]
-from brain_pipe.oasis3.pipeline.xnat import BUNDLE_URL, NitrcXnat
+import brainjar.oasis3  # ensures the submodule is loaded into sys.modules
+oasis3_fetch = sys.modules["brainjar.oasis3.fetch"]
+from brainjar.oasis3.pipeline.xnat import BUNDLE_URL, NitrcXnat
 
 
 @pytest.fixture
@@ -79,7 +79,7 @@ def test_fetch_bundle_reuses_zip_without_prompting(tmp_path, monkeypatch, capsys
 
     monkeypatch.setattr("builtins.input", _explode)
     monkeypatch.setattr(
-        "brain_pipe.oasis3.pipeline.xnat.NitrcXnat.__init__", _explode,
+        "brainjar.oasis3.pipeline.xnat.NitrcXnat.__init__", _explode,
     )
 
     out = oasis3_fetch._fetch_bundle(raw, nitrc_user="anyone")
@@ -103,7 +103,7 @@ def test_fetch_bundle_downloads_when_absent(tmp_path, monkeypatch):
     fake_client.download_data_files_bundle.side_effect = _capture_dl
 
     monkeypatch.setattr(
-        "brain_pipe.oasis3.pipeline.xnat.NitrcXnat",
+        "brainjar.oasis3.pipeline.xnat.NitrcXnat",
         lambda *a, **k: fake_client,
     )
 

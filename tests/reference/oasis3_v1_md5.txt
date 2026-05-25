@@ -1,4 +1,4 @@
-# md5 reference for brain_pipe.oasis3, 2026-05-21 reference run.
+# md5 reference for brainjar.oasis3, 2026-05-21 reference run.
 # 67-subject cohort, Python 3.12.3, n_jobs=8 (ITK threads=1).
 # Outputs are MNI-brain-masked. Includes the SUVR->T1 rigid step
 # (PUP SUVRs are in WashU's atlas frame, not the XNAT T1's frame).

@@ -1,4 +1,4 @@
-"""Fast loader tests for brain_pipe.hcp_ya_open.
+"""Fast loader tests for brainjar.hcp_ya_open.
 
 Synthesize a tiny processed cache in ``tmp_path`` and exercise
 ``get_df_image`` / ``get_df_xfeat`` against it. No real HCP data needed.
@@ -9,8 +9,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from brain_pipe.hcp_ya_open import labels as labels_mod
-from brain_pipe.hcp_ya_open.load import get_df_image, get_df_xfeat
+from brainjar.hcp_ya_open import labels as labels_mod
+from brainjar.hcp_ya_open.load import get_df_image, get_df_xfeat
 
 
 def _make_cache(dest, subjects=("100307", "100408", "101107")):

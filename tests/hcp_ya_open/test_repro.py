@@ -1,4 +1,4 @@
-"""Bit-equality regression tests for ``brain_pipe.hcp_ya_open``.
+"""Bit-equality regression tests for ``brainjar.hcp_ya_open``.
 
 This file is excluded from default pytest discovery (see
 ``tests/conftest.py``). Invoke explicitly:
@@ -9,10 +9,10 @@ This file is excluded from default pytest discovery (see
     pytest tests/hcp_ya_open/test_repro.py::test_zenodo_download_md5_matches_reference
 
 Requirements:
-- Raw HCP data at ``~/.local/share/brain_pipe/hcp_ya_open/raw/`` (the
+- Raw HCP data at ``~/.local/share/brainjar/hcp_ya_open/raw/`` (the
   package's default cache; reused so the 266 GB doesn't need to be
   re-staged into a temp dir).
-- Pipeline extra installed: ``pip install brain_pipe[hcp_ya_open-pipeline]``.
+- Pipeline extra installed: ``pip install brainjar[hcp_ya_open-pipeline]``.
 - Internet for the Zenodo test.
 - Approx wall time: ~3 min DTI, ~14 min SyN, ~3 min Zenodo download.
 """
@@ -59,7 +59,7 @@ def _read_reference():
 
 
 def _default_raw():
-    from brain_pipe.hcp_ya_open.fetch import _resolve_dest
+    from brainjar.hcp_ya_open.fetch import _resolve_dest
     return _resolve_dest() / "raw"
 
 
@@ -95,7 +95,7 @@ def test_dti_single_subject_deterministic(tmp_path):
     for name in ("data.nii.gz", "bvals", "bvecs"):
         os.symlink(src_dir / name, tmp_path / name)
 
-    from brain_pipe._dwi_pipeline.dti import process_dti
+    from brainjar._dwi_pipeline.dti import process_dti
     from dipy.reconst.dti import fractional_anisotropy, mean_diffusivity
 
     process_dti(
@@ -122,7 +122,7 @@ def test_syn_bit_identical_to_reference(tmp_path):
     """
     pytest.importorskip("dipy")
     pytest.importorskip("ants")
-    from brain_pipe.hcp_ya_open import process
+    from brainjar.hcp_ya_open import process
 
     raw = _default_raw()
     if not raw.exists():
@@ -175,14 +175,14 @@ def test_zenodo_download_md5_matches_reference():
     To force a true round-trip test of the Zenodo download path, clear
     the default cache first::
 
-        rm -rf ~/.local/share/brain_pipe/hcp_ya_open/{,*.nii.gz,covariates.csv,.complete}
-        # (or override with BRAIN_PIPE_HCP_YA_OPEN_PATH)
+        rm -rf ~/.local/share/brainjar/hcp_ya_open/{,*.nii.gz,covariates.csv,.complete}
+        # (or override with BRAINJAR_HCP_YA_OPEN_PATH)
     """
     if not REFERENCE_MD5.exists():
         pytest.skip(f"Reference md5 list missing at {REFERENCE_MD5}")
 
-    from brain_pipe.hcp_ya_open import process
-    from brain_pipe.hcp_ya_open.fetch import _resolve_dest
+    from brainjar.hcp_ya_open import process
+    from brainjar.hcp_ya_open.fetch import _resolve_dest
 
     dest = process(download=True)
     assert dest == _resolve_dest(), "process() returned an unexpected path"
