@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "brainjar"
-version = "0.1.0"
+version = "0.1.1"
 description = "Reproducible processing pipelines and uniform loaders for brain imaging datasets."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -18,6 +18,7 @@ dependencies = [
     "platformdirs>=4",
     "pyyaml>=6",
     "tqdm>=4",
+    "matplotlib>=3",  # used by the registration-QC script
 ]
 
 [project.optional-dependencies]
